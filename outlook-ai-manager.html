@@ -920,9 +920,23 @@ async function setFolder(folder, name, el) {
   document.getElementById('flt-all').classList.add('on');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
-  document.getElementById('folder-title').textContent = name;
+
+  // Always make sure email view is visible
+  document.getElementById('search-results-view').classList.remove('open');
+  document.getElementById('attachment-view').style.display = 'none';
+  document.getElementById('email-view').style.display = 'flex';
+  document.getElementById('search-input').value = '';
+
   closeDetail();
-  closeSearch();
+
+  // If switching back to inbox and emails already loaded, show them immediately
+  if (folder === 'inbox' && loadedEmails.length > 0 && currentFolder === 'inbox') {
+    document.getElementById('folder-title').textContent = `Inbox (${loadedEmails.length})`;
+    renderEmailList(loadedEmails);
+    return;
+  }
+
+  document.getElementById('folder-title').textContent = name;
   showListLoading();
   try {
     loadedEmails = await loadEmails(folder, 'all');
@@ -1291,8 +1305,20 @@ function openSearchResult(id, emails) {
 
 function closeSearch() {
   document.getElementById('search-results-view').classList.remove('open');
+  document.getElementById('attachment-view').style.display = 'none';
   document.getElementById('email-view').style.display = 'flex';
   document.getElementById('search-input').value = '';
+  // Re-render the current email list so it's not blank
+  if (loadedEmails.length > 0) {
+    renderEmailList(loadedEmails);
+  } else {
+    showListLoading();
+    loadEmails(currentFolder, currentFilter).then(emails => {
+      loadedEmails = emails;
+      renderEmailList(emails);
+      updateUnreadBadge(emails);
+    }).catch(() => showListError('Could not load emails. Click refresh.'));
+  }
 }
 
 // ── AI COMPOSER ──
@@ -1442,6 +1468,7 @@ function closeAttachmentBrowser() {
   document.getElementById('email-view').style.display = 'flex';
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('nav-inbox').classList.add('active');
+  if (loadedEmails.length > 0) renderEmailList(loadedEmails);
 }
 
 async function loadAllAttachments() {
