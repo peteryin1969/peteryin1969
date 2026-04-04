@@ -400,23 +400,23 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
     <div class="search-container">
       <div class="search-box">
         <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
-        <input id="search-input" type="text" placeholder='Try: "emails from Sarah about budget" or "meeting requests"'
+        <input id="search-input" type="text" placeholder='Keyword search — or click ✦ Ask Claude for natural language'
           onkeydown="handleSearchKey(event)" oninput="onSearchInput()" onfocus="onSearchFocus()" onblur="onSearchBlur()">
         <button class="search-mode-btn ai" id="mode-badge" onclick="toggleSearchMode()">✦ AI</button>
         <button class="search-run-btn" onclick="runSearch()">Search</button>
       </div>
       <div class="search-suggestions" id="search-suggestions">
-        <div class="sugg-group-label">Suggested searches</div>
-        <div class="sugg-item" onmousedown="pickSuggestion('emails from today I haven\'t read')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>emails from today I haven't read</div>
-        <div class="sugg-item" onmousedown="pickSuggestion('emails that need my reply')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>emails that need my reply</div>
-        <div class="sugg-item" onmousedown="pickSuggestion('meeting invites this week')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>meeting invites this week</div>
-        <div class="sugg-item" onmousedown="pickSuggestion('anything urgent or action required')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>anything urgent or action required</div>
-        <div class="sugg-item" onmousedown="pickSuggestion('emails with attachments')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>emails with attachments</div>
+        <div class="sugg-group-label">Ask Claude (natural language)</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('emails from today I haven\'t read')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>find emails from today I haven't read</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('emails that need my reply')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>find emails that need my reply</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('show meeting invites this week')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>show meeting invites this week</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('find anything urgent or action required')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>find anything urgent or action required</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('show emails with attachments')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>show emails with attachments</div>
       </div>
     </div>
     <div class="topbar-right">
-      <button class="chat-toggle-btn" onclick="toggleClaudeChat()" id="chat-toggle-btn">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.5 10h-1V7h1v4zm0-5h-1V5h1v1z"/></svg>
+      <button class="chat-toggle-btn" onclick="toggleClaudeChat()" id="chat-toggle-btn" style="background:rgba(255,255,255,0.25);border:1.5px solid rgba(255,255,255,0.6);font-size:13px;padding:6px 16px">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>
         ✦ Ask Claude
       </button>
       <button class="topbar-icon-btn" onclick="openComposer()" title="AI Compose">
@@ -1273,6 +1273,23 @@ function quickSearch(query) { document.getElementById('search-input').value = qu
 async function runSearch() {
   const q = document.getElementById('search-input').value.trim();
   if (!q) return;
+
+  // Detect if query is natural language (more than 3 words or contains question words)
+  const words = q.split(/\s+/);
+  const isNaturalLanguage = words.length >= 4 ||
+    /^(find|show|get|what|who|when|any|all|give|list|which|how|tell|search|look)/i.test(q) ||
+    /\b(last|latest|recent|today|yesterday|week|month|urgent|unread|from|about|regarding|with|sent|received)\b/i.test(q);
+
+  if (isNaturalLanguage) {
+    // Redirect to Claude chat for natural language queries
+    document.getElementById('search-input').value = '';
+    const panel = document.getElementById('claude-chat-panel');
+    panel.classList.add('open');
+    sendChatMsg(q);
+    return;
+  }
+
+  // Short keyword search — use local search directly
   document.getElementById('email-view').style.display = 'none';
   document.getElementById('attachment-view').style.display = 'none';
   document.getElementById('search-results-view').classList.add('open');
