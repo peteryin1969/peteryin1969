@@ -789,20 +789,24 @@ function normaliseMessage(m, folder) {
   };
 }
 
-function launchApp() {
-  document.getElementById('user-avatar').textContent = ME.initials;
-  document.getElementById('menu-name').textContent = ME.name;
-  document.getElementById('menu-email').textContent = ME.email;
-  showScreen('app-screen');
-  renderEmailList(loadedEmails);
-  buildCtxList(loadedEmails);
-}
-
 function setLoaderMsg(msg, pct) {
   const el = document.getElementById('loader-msg');
   const fill = document.getElementById('loader-fill');
   if (el) el.textContent = msg;
   if (fill) fill.style.width = pct + '%';
+}
+
+function launchApp() {
+  const avatar = document.getElementById('user-avatar');
+  const menuName = document.getElementById('menu-name');
+  const menuEmail = document.getElementById('menu-email');
+  if (avatar) avatar.textContent = ME.initials || '?';
+  if (menuName) menuName.textContent = ME.name || 'User';
+  if (menuEmail) menuEmail.textContent = ME.email || '';
+  showScreen('app-screen');
+  showListLoading();
+  renderEmailList([]);
+  buildCtxList([]);
 }
 
 // ── Folder / filter ──
