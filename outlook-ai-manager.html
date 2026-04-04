@@ -532,6 +532,9 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
           </div>
         </div>
       </div>
+
+      <!-- Search results view -->
+      <div class="search-results-view" id="search-results-view">
         <div class="sr-topbar">
           <h2 id="sr-title">Search results</h2>
           <button class="sr-close" onclick="closeSearch()">×</button>
@@ -546,6 +549,7 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </div>
@@ -912,6 +916,7 @@ function launchApp() {
 
 // ── Folder / filter ──
 async function setFolder(folder, name, el) {
+  const wasFolder = currentFolder;
   currentFolder = folder;
   currentFolderName = name;
   currentEmail = null;
@@ -926,12 +931,11 @@ async function setFolder(folder, name, el) {
   document.getElementById('attachment-view').style.display = 'none';
   document.getElementById('email-view').style.display = 'flex';
   document.getElementById('search-input').value = '';
-
   closeDetail();
 
-  // If switching back to inbox and emails already loaded, show them immediately
-  if (folder === 'inbox' && loadedEmails.length > 0 && currentFolder === 'inbox') {
-    document.getElementById('folder-title').textContent = `Inbox (${loadedEmails.length})`;
+  // If switching back to same folder and emails already loaded, show instantly
+  if (wasFolder === folder && loadedEmails.length > 0) {
+    document.getElementById('folder-title').textContent = `${name} (${loadedEmails.length})`;
     renderEmailList(loadedEmails);
     return;
   }
@@ -1308,17 +1312,7 @@ function closeSearch() {
   document.getElementById('attachment-view').style.display = 'none';
   document.getElementById('email-view').style.display = 'flex';
   document.getElementById('search-input').value = '';
-  // Re-render the current email list so it's not blank
-  if (loadedEmails.length > 0) {
-    renderEmailList(loadedEmails);
-  } else {
-    showListLoading();
-    loadEmails(currentFolder, currentFilter).then(emails => {
-      loadedEmails = emails;
-      renderEmailList(emails);
-      updateUnreadBadge(emails);
-    }).catch(() => showListError('Could not load emails. Click refresh.'));
-  }
+  renderEmailList(loadedEmails);
 }
 
 // ── AI COMPOSER ──
