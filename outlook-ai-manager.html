@@ -664,14 +664,18 @@ async function handleOAuthCallback() {
 
     setLoaderMsg('Loading your profile...', 50);
     await loadProfile();
-    setLoaderMsg('Fetching your inbox...', 75);
-    try {
-      loadedEmails = await loadEmails('inbox');
-    } catch(e) {
-      loadedEmails = [];
-    }
-    setLoaderMsg('Almost ready...', 95);
-    setTimeout(() => launchApp(), 400);
+    setLoaderMsg('Opening your inbox...', 90);
+    // Launch app immediately, load emails in background
+    launchApp();
+    // Load emails after app is visible
+    loadEmails('inbox').then(emails => {
+      loadedEmails = emails;
+      renderEmailList(emails);
+      buildCtxList(emails);
+      updateUnreadBadge(emails);
+    }).catch(() => {
+      showListError('Could not load emails. Click refresh to try again.');
+    });
     return true;
   } catch (e) {
     showScreen('auth-screen');
