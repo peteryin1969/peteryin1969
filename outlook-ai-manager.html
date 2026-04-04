@@ -2174,31 +2174,44 @@ Just write the email — no explanation needed.`;
 }
 let chatHistory = [];
 let chatSearching = false;
-let CLAUDE_API_KEY = sessionStorage.getItem('claude_api_key') || '';
+let CLAUDE_API_KEY = localStorage.getItem('claude_api_key') || sessionStorage.getItem('claude_api_key') || '';
 
-// Call Claude API directly using stored key
+// Call Claude API — works when file opened locally (double-click)
 async function claudeFetch(body) {
   if (!CLAUDE_API_KEY) {
     openApiKeySetup();
     throw new Error('No Claude API key. Please enter your key.');
   }
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-allow-cors': 'true'
-    },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `API error ${res.status}`);
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-allow-cors': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+    if (res.status === 401) {
+      CLAUDE_API_KEY = '';
+      localStorage.removeItem('claude_api_key');
+      openApiKeySetup();
+      throw new Error('Invalid API key — please re-enter.');
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `API error ${res.status}`);
+    }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data;
+  } catch(e) {
+    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.message.includes('CORS')) {
+      throw new Error('CORS_BLOCKED');
+    }
+    throw e;
   }
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data;
 }
 
 // API Key setup overlay
@@ -2211,21 +2224,19 @@ function closeApiKeySetup() {
 }
 function saveApiKey() {
   const key = document.getElementById('api-key-input').value.trim();
-  if (!key.startsWith('sk-ant-')) {
+  if (!key.startsWith('sk-ant-') && !key.startsWith('sk-')) {
     document.getElementById('api-key-error').textContent = 'Invalid key — it should start with sk-ant-';
     document.getElementById('api-key-error').style.display = 'block';
     return;
   }
   CLAUDE_API_KEY = key;
-  sessionStorage.setItem('claude_api_key', key);
+  localStorage.setItem('claude_api_key', key);
   closeApiKeySetup();
-  // Update button to show AI is active
   const btn = document.getElementById('chat-toggle-btn');
   if (btn) btn.style.background = 'rgba(255,255,255,0.35)';
-  // Show confirmation in chat
   const panel = document.getElementById('claude-chat-panel');
   panel.classList.add('open');
-  addChatMsg('claude', '✅ **Claude AI is now connected!**\n\nYou can now:\n• Ask me to find any emails\n• Click **✦ AI Draft Reply** on any email for a real AI-written response\n• Type anything in plain English here\n\nTry: _"find emails about invoices"_ or open an email and click **✦ AI Draft Reply**');
+  addChatMsg('claude', '✅ **Claude AI is now connected and saved!**\n\nYou will not need to enter your key again.\n\nYou can now:\n• Click **✦ AI Draft Reply** on any email\n• Ask me anything in plain English\n• Search your inbox intelligently\n\nTry opening an email and clicking **✦ AI Draft Reply**!');
 }
 function checkProxy() {} // no-op, kept for compatibility
 
@@ -2432,6 +2443,14 @@ For analysis questions (not search), just answer directly without results tags.`
 
   } catch(err) {
     thinking.remove();
+
+    // If CORS blocked (GitHub Pages) — show clear message
+    if (err.message === 'CORS_BLOCKED') {
+      addChatMsg('claude', '⚠️ **Claude AI is blocked on GitHub Pages.**\n\nTo use Claude AI, open the app by **double-clicking the HTML file** on your computer instead of using the GitHub Pages URL.\n\nThe file works perfectly when opened locally — Claude AI, search, and draft reply all work.');
+      chatSearching = false;
+      document.getElementById('claude-chat-send').disabled = false;
+      return;
+    }
 
     // Fallback: do local smart search and format as chat response
     const ql = query.toLowerCase();
