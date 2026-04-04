@@ -1116,8 +1116,8 @@ async function openEmail(e, row) {
   `;
   document.getElementById('d-actions').innerHTML = `
     <button class="action-btn primary" onclick="openComposerForReply()">Reply</button>
-    <button class="action-btn ai" onclick="openComposerForReply()">✦ AI Draft Reply</button>
-    <button class="action-btn ai" onclick="aiChip('Summarize this email in 3 bullet points')">✦ Summarize</button>
+    <button class="action-btn ai" onclick="claudeDraftReply()">✦ AI Draft Reply</button>
+    <button class="action-btn ai" onclick="askClaudeChat('Summarize this email in 3 bullet points. From: ${esc(e.sender)}. Subject: ${esc(e.subject)}. Body: ${esc((e.body||'').slice(0,300))}')">✦ Summarize</button>
     <button class="action-btn" onclick="moveToFolder('${e.graphId}','deleteditems')" style="color:var(--urgent)">Delete</button>
   `;
 
@@ -1498,8 +1498,8 @@ function openSearchResult(id, emails) {
     <div class="detail-meta"><strong>From:</strong> ${esc(e.sender)}<br><strong>Date:</strong> ${e.time}</div>
     <div class="detail-actions">
       <button class="action-btn primary" onclick="openComposerForReply()">Reply</button>
-      <button class="action-btn ai" onclick="currentEmail=window.searchEmails.find(x=>x.id==='${id}');aiChip('Draft a professional reply')">✦ AI Reply</button>
-      <button class="action-btn ai" onclick="currentEmail=window.searchEmails.find(x=>x.id==='${id}');aiChip('Summarize this email in 3 bullet points')">✦ Summarize</button>
+      <button class="action-btn ai" onclick="claudeDraftReply()">✦ AI Reply</button>
+      <button class="action-btn ai" onclick="currentEmail=window.searchEmails.find(x=>x.id==='${id}');askClaudeChat('Summarize this email in 3 bullet points')">✦ Summarize</button>
     </div>
     <div class="detail-body">${esc(e.body)}</div>`;
 }
@@ -1987,7 +1987,149 @@ function viewAttachmentEmail(emailId) {
   }, 100);
 }
 
-// ── CLAUDE CHAT SEARCH ──
+// ── CLAUDE DRAFT REPLY ──
+async function claudeDraftReply() {
+  if (!currentEmail) return;
+
+  // Open the Claude chat panel
+  const panel = document.getElementById('claude-chat-panel');
+  panel.classList.add('open');
+
+  // Show a loading message in chat
+  addChatMsg('user', `Draft a reply to this email from ${currentEmail.sender} — subject: "${currentEmail.subject}"`);
+
+  const thinking = addThinkingBubble();
+  chatSearching = true;
+  document.getElementById('claude-chat-send').disabled = true;
+
+  const loadingEl = document.getElementById('compose-loading-msg');
+
+  // Step 1: Fetch full body of current email
+  let fullBody = currentEmail.fullBody || currentEmail.body || '';
+  if (fullBody.length < 50) {
+    try {
+      const full = await graphFetch(`/me/messages/${currentEmail.graphId}?$select=body`);
+      fullBody = (full?.body?.content || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+      currentEmail.fullBody = fullBody;
+    } catch {}
+  }
+
+  // Step 2: Fetch full conversation thread
+  let threadText = '';
+  let threadCount = 0;
+  try {
+    const msgData = await graphFetch(`/me/messages/${currentEmail.graphId}?$select=conversationId`);
+    const convId = msgData?.conversationId;
+    if (convId) {
+      const threadData = await graphFetch(
+        `/me/messages?$filter=conversationId eq '${convId}'&$select=subject,from,receivedDateTime,body&$orderby=receivedDateTime asc&$top=20`
+      );
+      const threadEmails = threadData?.value || [];
+      threadCount = threadEmails.length;
+      threadText = threadEmails.map(m => {
+        const sender = m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown';
+        const date = new Date(m.receivedDateTime).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+        const body = (m.body?.content || '').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim().slice(0, 600);
+        return `[${date}] ${sender} wrote:\n${body}`;
+      }).join('\n\n────────\n\n');
+    }
+  } catch {}
+
+  // Step 3: Get my writing style from sent emails
+  const sentSamples = loadedEmails
+    .filter(e => e.folder === 'sentItems')
+    .slice(0, 3)
+    .map(e => e.fullBody || e.body || '')
+    .filter(b => b.length > 30)
+    .join('\n\n---\n\n');
+
+  // Step 4: Build the prompt for Claude
+  const prompt = `I need you to draft a professional email reply on behalf of ${ME.name} (${ME.email}).
+
+${threadCount > 1 ? `FULL EMAIL THREAD (${threadCount} emails, read all carefully before drafting):` : 'EMAIL TO REPLY TO:'}
+${threadText || `From: ${currentEmail.sender}\nSubject: ${currentEmail.subject}\n\n${fullBody}`}
+
+${sentSamples ? `MY WRITING STYLE (study these to match my voice):
+${sentSamples}` : ''}
+
+Please draft a reply that:
+1. Addresses all points raised in the email thread
+2. Matches my writing style (greeting, tone, sign-off)
+3. Is professional and appropriate
+4. Only asks for clarification if genuinely needed
+
+Format your response as:
+**Draft reply:**
+
+[the full email draft here]
+
+Then briefly explain what you included and why.`;
+
+  // Step 5: Send to Claude
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-allow-cors': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    thinking.remove();
+
+    if (data.error) throw new Error(data.error.message);
+
+    const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    chatHistory.push({ role: 'assistant', content: rawText });
+
+    // Extract just the draft section
+    const draftMatch = rawText.match(/\*\*Draft reply:\*\*\s*([\s\S]*?)(?:\n\n[A-Z]|\n\n\*\*|$)/);
+    const draftText = draftMatch ? draftMatch[1].trim() : rawText;
+
+    // Show in chat with a copy-to-composer button
+    const msgDiv = addChatMsg('claude', rawText);
+
+    // Add "Use this draft" button
+    const useBtn = document.createElement('button');
+    useBtn.style.cssText = 'margin-top:8px;padding:6px 14px;background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius-lg);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);display:block';
+    useBtn.textContent = '✦ Use this draft in composer';
+    useBtn.onclick = () => {
+      // Open composer and pre-fill with this draft
+      openComposerForReply();
+      setTimeout(() => {
+        const bodyEl = document.getElementById('r-body');
+        const subjectEl = document.getElementById('r-subject');
+        if (bodyEl) bodyEl.value = draftText;
+        if (subjectEl) subjectEl.value = 'Re: ' + currentEmail.subject.replace(/^re:\s*/i,'');
+        showComposePart('result');
+        document.getElementById('compose-insight').textContent =
+          `Claude read ${threadCount > 1 ? 'full thread (' + threadCount + ' emails)' : 'this email'} and drafted a reply matching your writing style.`;
+      }, 300);
+    };
+
+    const lastBubble = document.querySelector('#claude-chat-msgs .chat-msg:last-child .chat-bubble');
+    if (lastBubble) lastBubble.after(useBtn);
+
+  } catch(err) {
+    thinking.remove();
+    // Fallback: build a smart template from thread
+    const senderFirst = (currentEmail.sender || '').split(' ')[0];
+    const myFirst = ME.name.split(' ')[0];
+    const draft = `Hi ${senderFirst},\n\nThank you for your email regarding "${currentEmail.subject.replace(/^re:\s*/i,'')}".\n\n[Add your response here — Claude could not connect to draft automatically.]\n\nPlease let me know if you have any further questions.\n\nBest regards,\n${ME.name}`;
+
+    addChatMsg('claude', `I couldn't connect to Claude AI to draft the reply automatically. Here is a template based on the email:\n\n**Draft reply:**\n\n${draft}\n\nYou can edit this and use it as your reply.`);
+  }
+
+  chatSearching = false;
+  document.getElementById('claude-chat-send').disabled = false;
+}
 let chatHistory = []; // {role, content}
 let chatSearching = false;
 
