@@ -262,6 +262,26 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3)}
 
+/* Attachment browser cards */
+.attach-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;gap:6px}
+.attach-card:hover{border-color:var(--ms-blue);box-shadow:0 2px 8px rgba(0,120,212,0.1)}
+.attach-card-top{display:flex;align-items:center;gap:10px}
+.attach-card-icon{width:36px;height:36px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.attach-card-icon.pdf{background:#fde7e9;color:#8e0000}
+.attach-card-icon.doc{background:#deecf9;color:#003b6b}
+.attach-card-icon.xls{background:#dff6dd;color:#054b16}
+.attach-card-icon.img{background:#ede8f8;color:#3b2a6e}
+.attach-card-icon.zip{background:#fef0cd;color:#5c3f00}
+.attach-card-icon.other{background:var(--bg);color:var(--text2)}
+.attach-card-name{font-size:13px;font-weight:500;color:var(--text);flex:1;word-break:break-word;line-height:1.3}
+.attach-card-meta{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.attach-card-email{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attach-card-actions{display:flex;gap:6px;margin-top:2px}
+.attach-btn{padding:4px 12px;border-radius:var(--radius);font-size:11px;font-weight:500;cursor:pointer;font-family:var(--font);border:1px solid var(--border2);background:transparent;color:var(--text2)}
+.attach-btn:hover{background:var(--bg)}
+.attach-btn.primary{background:var(--ms-blue);color:#fff;border-color:var(--ms-blue)}
+.attach-btn.primary:hover{background:var(--ms-blue-dark)}
+
 /* OAuth callback overlay */
 #oauth-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center}
 #oauth-overlay.show{display:flex}
@@ -432,6 +452,10 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#0078d4"><path d="M2 12h2v2H2v-2zm3-3h2v5H5V9zm3-3h2v8H8V6zm3-3h2v11h-2V3z"/></svg>
         Inbox Analysis
       </div>
+      <div class="nav-item" id="nav-attachments" onclick="openAttachmentBrowser()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#0078d4"><path d="M14 7l-6 6a4 4 0 0 1-5.7-5.7l6-6a2.5 2.5 0 0 1 3.5 3.5L6 10a1 1 0 0 1-1.4-1.4L10 3l-1-1-5.4 5.4a3 3 0 0 0 4.2 4.2L14 6l-1-1z"/></svg>
+        All Attachments
+      </div>
     </div>
 
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative">
@@ -474,7 +498,40 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
         </div>
       </div>
 
-      <div class="search-results-view" id="search-results-view">
+      <!-- Attachment browser view -->
+      <div id="attachment-view" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+        <div class="sr-topbar">
+          <h2 id="attach-title">All Attachments</h2>
+          <button class="sr-close" onclick="closeAttachmentBrowser()">×</button>
+        </div>
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--surface);flex-shrink:0">
+          <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:7px 12px">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="color:var(--text3);flex-shrink:0"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+            <input id="attach-search" type="text" placeholder="Search by filename, type, or sender..." oninput="filterAttachments()" style="flex:1;border:none;outline:none;font-size:13px;background:transparent;color:var(--text);font-family:var(--font)">
+          </div>
+          <select id="attach-type-filter" onchange="filterAttachments()" style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;font-family:var(--font);color:var(--text);background:var(--surface);cursor:pointer;outline:none">
+            <option value="all">All types</option>
+            <option value="pdf">PDF</option>
+            <option value="doc">Word (DOC/DOCX)</option>
+            <option value="xls">Excel (XLS/XLSX)</option>
+            <option value="img">Images</option>
+            <option value="zip">Archives (ZIP/RAR)</option>
+            <option value="other">Other</option>
+          </select>
+          <select id="attach-sort" onchange="filterAttachments()" style="padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;font-family:var(--font);color:var(--text);background:var(--surface);cursor:pointer;outline:none">
+            <option value="date">Newest first</option>
+            <option value="name">Name A-Z</option>
+            <option value="size">Largest first</option>
+          </select>
+        </div>
+        <div id="attach-stats" style="padding:8px 16px;font-size:12px;color:var(--text3);border-bottom:1px solid var(--border);flex-shrink:0"></div>
+        <div id="attach-grid" style="flex:1;overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-content:start">
+          <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:12px;color:var(--text3)">
+            <div class="dot-loader"><span></span><span></span><span></span></div>
+            <div style="font-size:13px">Loading attachments from your inbox...</div>
+          </div>
+        </div>
+      </div>
         <div class="sr-topbar">
           <h2 id="sr-title">Search results</h2>
           <button class="sr-close" onclick="closeSearch()">×</button>
@@ -1356,6 +1413,156 @@ async function sendEmailGraph() {
 }
 
 // ── INIT ──
+// ── ATTACHMENT BROWSER ──
+let allAttachments = []; // [{name, size, contentType, graphId, attachId, emailSubject, emailSender, emailDate, emailId}]
+let attachBrowserLoaded = false;
+
+async function openAttachmentBrowser() {
+  document.getElementById('email-view').style.display = 'none';
+  document.getElementById('search-results-view').classList.remove('open');
+  document.getElementById('attachment-view').style.display = 'flex';
+  document.getElementById('attachment-view').style.flexDirection = 'column';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-attachments').classList.add('active');
+
+  if (!attachBrowserLoaded) {
+    await loadAllAttachments();
+  } else {
+    renderAttachmentGrid(allAttachments);
+  }
+}
+
+function closeAttachmentBrowser() {
+  document.getElementById('attachment-view').style.display = 'none';
+  document.getElementById('email-view').style.display = 'flex';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-inbox').classList.add('active');
+}
+
+async function loadAllAttachments() {
+  const grid = document.getElementById('attach-grid');
+  grid.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:12px;color:var(--text3)">
+    <div class="dot-loader"><span></span><span></span><span></span></div>
+    <div id="attach-load-msg" style="font-size:13px">Scanning your inbox for attachments...</div>
+  </div>`;
+
+  allAttachments = [];
+  const emailsWithAttachments = loadedEmails.filter(e => e.attachment);
+  const total = emailsWithAttachments.length;
+  let done = 0;
+
+  for (const email of emailsWithAttachments) {
+    try {
+      const data = await graphFetch(`/me/messages/${email.graphId}/attachments?$select=id,name,size,contentType`);
+      const attachments = data?.value || [];
+      attachments.forEach(a => {
+        allAttachments.push({
+          name: a.name || 'Unnamed',
+          size: a.size || 0,
+          contentType: a.contentType || '',
+          attachId: a.id,
+          graphId: email.graphId,
+          emailId: email.id,
+          emailSubject: email.subject,
+          emailSender: email.sender,
+          emailDate: email.time,
+          rawDate: email.rawDate
+        });
+      });
+      done++;
+      const msgEl = document.getElementById('attach-load-msg');
+      if (msgEl) msgEl.textContent = `Scanning emails... ${done}/${total} (${allAttachments.length} attachments found)`;
+    } catch {}
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  attachBrowserLoaded = true;
+  renderAttachmentGrid(allAttachments);
+}
+
+function getAttachType(name, contentType) {
+  const ext = (name || '').split('.').pop().toLowerCase();
+  if (ext === 'pdf' || contentType.includes('pdf')) return 'pdf';
+  if (['doc','docx'].includes(ext) || contentType.includes('word')) return 'doc';
+  if (['xls','xlsx','csv'].includes(ext) || contentType.includes('sheet') || contentType.includes('excel')) return 'xls';
+  if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext) || contentType.includes('image')) return 'img';
+  if (['zip','rar','7z','tar','gz'].includes(ext)) return 'zip';
+  return 'other';
+}
+
+function filterAttachments() {
+  const q = (document.getElementById('attach-search')?.value || '').toLowerCase();
+  const typeFilter = document.getElementById('attach-type-filter')?.value || 'all';
+  const sort = document.getElementById('attach-sort')?.value || 'date';
+
+  let filtered = allAttachments.filter(a => {
+    const matchQ = !q || a.name.toLowerCase().includes(q) || a.emailSubject.toLowerCase().includes(q) || a.emailSender.toLowerCase().includes(q);
+    const type = getAttachType(a.name, a.contentType);
+    const matchType = typeFilter === 'all' || type === typeFilter;
+    return matchQ && matchType;
+  });
+
+  if (sort === 'name') filtered.sort((a,b) => a.name.localeCompare(b.name));
+  else if (sort === 'size') filtered.sort((a,b) => b.size - a.size);
+  else filtered.sort((a,b) => (b.rawDate || 0) - (a.rawDate || 0));
+
+  renderAttachmentGrid(filtered);
+}
+
+function renderAttachmentGrid(attachments) {
+  const stats = document.getElementById('attach-stats');
+  const grid = document.getElementById('attach-grid');
+  const title = document.getElementById('attach-title');
+
+  if (title) title.textContent = `All Attachments (${allAttachments.length})`;
+  if (stats) {
+    const totalSize = allAttachments.reduce((s,a) => s + a.size, 0);
+    const sizeMB = (totalSize / 1048576).toFixed(1);
+    stats.textContent = `${attachments.length} of ${allAttachments.length} attachments shown · Total size: ${sizeMB} MB`;
+  }
+
+  if (!attachments.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3);font-size:13px">No attachments found matching your search.</div>`;
+    return;
+  }
+
+  grid.innerHTML = attachments.map(a => {
+    const type = getAttachType(a.name, a.contentType);
+    const ext = (a.name || '').split('.').pop().toUpperCase().slice(0, 4);
+    const size = a.size > 1048576 ? (a.size/1048576).toFixed(1)+' MB' : a.size > 1024 ? (a.size/1024).toFixed(0)+' KB' : a.size + ' B';
+    return `<div class="attach-card" onclick="viewAttachmentEmail('${a.emailId}')">
+      <div class="attach-card-top">
+        <div class="attach-card-icon ${type}">${ext}</div>
+        <div class="attach-card-name">${esc(a.name)}</div>
+      </div>
+      <div class="attach-card-email">${esc(a.emailSender)} · ${esc(a.emailSubject.slice(0,40))}${a.emailSubject.length>40?'…':''}</div>
+      <div class="attach-card-meta">
+        <span>${size}</span>
+        <span>·</span>
+        <span>${a.emailDate}</span>
+      </div>
+      <div class="attach-card-actions">
+        <button class="attach-btn primary" onclick="event.stopPropagation();downloadAttachment('${a.graphId}','${a.attachId}','${a.name.replace(/'/g,"\\'")}')">Download</button>
+        <button class="attach-btn" onclick="event.stopPropagation();viewAttachmentEmail('${a.emailId}')">View email</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewAttachmentEmail(emailId) {
+  const email = loadedEmails.find(e => e.id === emailId);
+  if (!email) return;
+  closeAttachmentBrowser();
+  // Small delay to let the view switch
+  setTimeout(() => {
+    const rows = document.querySelectorAll('.email-row');
+    const list = loadedEmails;
+    const idx = list.findIndex(e => e.id === emailId);
+    if (rows[idx]) openEmail(email, rows[idx]);
+    else openEmail(email, null);
+  }, 100);
+}
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
