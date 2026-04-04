@@ -1991,81 +1991,81 @@ function viewAttachmentEmail(emailId) {
 async function claudeDraftReply() {
   if (!currentEmail) return;
 
-  // Open the Claude chat panel
+  // Open the Claude chat panel so user can see what's happening
   const panel = document.getElementById('claude-chat-panel');
   panel.classList.add('open');
 
-  // Show a loading message in chat
-  addChatMsg('user', `Draft a reply to this email from ${currentEmail.sender} — subject: "${currentEmail.subject}"`);
+  // Close composer if open
+  document.getElementById('composer-panel').classList.remove('open');
+
+  addChatMsg('user', `Please read the full email thread and draft a reply to: "${currentEmail.subject}" from ${currentEmail.sender}`);
+  chatHistory.push({ role: 'user', content: `Draft a reply to email from ${currentEmail.sender}: ${currentEmail.subject}` });
 
   const thinking = addThinkingBubble();
   chatSearching = true;
   document.getElementById('claude-chat-send').disabled = true;
 
-  const loadingEl = document.getElementById('compose-loading-msg');
-
-  // Step 1: Fetch full body of current email
+  // Step 1: Fetch full body
   let fullBody = currentEmail.fullBody || currentEmail.body || '';
-  if (fullBody.length < 50) {
-    try {
-      const full = await graphFetch(`/me/messages/${currentEmail.graphId}?$select=body`);
-      fullBody = (full?.body?.content || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
-      currentEmail.fullBody = fullBody;
-    } catch {}
-  }
+  try {
+    const full = await graphFetch(`/me/messages/${currentEmail.graphId}?$select=body,conversationId`);
+    fullBody = (full?.body?.content || '').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+    currentEmail.fullBody = fullBody;
+    currentEmail._convId = full?.conversationId;
+  } catch {}
 
   // Step 2: Fetch full conversation thread
-  let threadText = '';
-  let threadCount = 0;
+  let threadText = `From: ${currentEmail.sender}\nDate: ${currentEmail.time}\nSubject: ${currentEmail.subject}\n\n${fullBody}`;
+  let threadCount = 1;
   try {
-    const msgData = await graphFetch(`/me/messages/${currentEmail.graphId}?$select=conversationId`);
-    const convId = msgData?.conversationId;
+    const convId = currentEmail._convId;
     if (convId) {
       const threadData = await graphFetch(
         `/me/messages?$filter=conversationId eq '${convId}'&$select=subject,from,receivedDateTime,body&$orderby=receivedDateTime asc&$top=20`
       );
-      const threadEmails = threadData?.value || [];
-      threadCount = threadEmails.length;
-      threadText = threadEmails.map(m => {
-        const sender = m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown';
-        const date = new Date(m.receivedDateTime).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
-        const body = (m.body?.content || '').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim().slice(0, 600);
-        return `[${date}] ${sender} wrote:\n${body}`;
-      }).join('\n\n────────\n\n');
+      const msgs = threadData?.value || [];
+      if (msgs.length > 0) {
+        threadCount = msgs.length;
+        threadText = msgs.map(m => {
+          const sender = m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown';
+          const date = new Date(m.receivedDateTime).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+          const body = (m.body?.content||'').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim().slice(0,800);
+          return `[${date}] ${sender} wrote:\n${body}`;
+        }).join('\n\n────────\n\n');
+      }
     }
   } catch {}
 
-  // Step 3: Get my writing style from sent emails
+  // Step 3: My writing style
   const sentSamples = loadedEmails
-    .filter(e => e.folder === 'sentItems')
+    .filter(e => e.folder === 'sentItems' && (e.fullBody || e.body || '').length > 30)
     .slice(0, 3)
-    .map(e => e.fullBody || e.body || '')
-    .filter(b => b.length > 30)
+    .map(e => e.fullBody || e.body)
     .join('\n\n---\n\n');
 
-  // Step 4: Build the prompt for Claude
-  const prompt = `I need you to draft a professional email reply on behalf of ${ME.name} (${ME.email}).
+  // Step 4: Build prompt
+  const prompt = `You are drafting an email reply on behalf of ${ME.name} (${ME.email}).
 
-${threadCount > 1 ? `FULL EMAIL THREAD (${threadCount} emails, read all carefully before drafting):` : 'EMAIL TO REPLY TO:'}
-${threadText || `From: ${currentEmail.sender}\nSubject: ${currentEmail.subject}\n\n${fullBody}`}
+FULL EMAIL THREAD (${threadCount} email${threadCount!==1?'s':''} — read all carefully):
+${threadText}
 
-${sentSamples ? `MY WRITING STYLE (study these to match my voice):
+${sentSamples ? `${ME.name}'s WRITING STYLE (match this exactly — greeting, tone, sign-off):
 ${sentSamples}` : ''}
 
-Please draft a reply that:
-1. Addresses all points raised in the email thread
-2. Matches my writing style (greeting, tone, sign-off)
-3. Is professional and appropriate
-4. Only asks for clarification if genuinely needed
+Write a complete, ready-to-send email reply that:
+- Addresses every point raised in the thread
+- Uses ${ME.name}'s exact writing style, greeting and sign-off
+- Is professional and concise
+- Does NOT use placeholders like [Add your response here]
 
-Format your response as:
-**Draft reply:**
+Respond with:
+**DRAFT REPLY:**
+[the complete email — nothing else after the draft]
 
-[the full email draft here]
+Then on a new line add:
+**WHY:** [one sentence explaining what you addressed]`;
 
-Then briefly explain what you included and why.`;
-
-  // Step 5: Send to Claude
+  // Step 5: Call Claude
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -2081,50 +2081,95 @@ Then briefly explain what you included and why.`;
       })
     });
 
+    if (!response.ok) throw new Error(`API error ${response.status}`);
     const data = await response.json();
-    thinking.remove();
-
     if (data.error) throw new Error(data.error.message);
 
-    const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const rawText = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    thinking.remove();
+
+    // Extract draft text
+    const draftMatch = rawText.match(/\*\*DRAFT REPLY:\*\*\s*([\s\S]*?)(?:\n\*\*WHY:|$)/i);
+    const draftText = draftMatch ? draftMatch[1].trim() : rawText.replace(/\*\*DRAFT REPLY:\*\*\s*/i,'').trim();
+    const whyMatch = rawText.match(/\*\*WHY:\*\*\s*(.*)/i);
+    const why = whyMatch ? whyMatch[1].trim() : `Read ${threadCount} email${threadCount!==1?'s':''} and drafted a reply.`;
+
     chatHistory.push({ role: 'assistant', content: rawText });
-
-    // Extract just the draft section
-    const draftMatch = rawText.match(/\*\*Draft reply:\*\*\s*([\s\S]*?)(?:\n\n[A-Z]|\n\n\*\*|$)/);
-    const draftText = draftMatch ? draftMatch[1].trim() : rawText;
-
-    // Show in chat with a copy-to-composer button
-    const msgDiv = addChatMsg('claude', rawText);
+    addChatMsg('claude', `✅ **Read ${threadCount} email${threadCount!==1?'s':''} in thread.**\n\n**Draft reply:**\n\n${draftText}\n\n_${why}_`);
 
     // Add "Use this draft" button
-    const useBtn = document.createElement('button');
-    useBtn.style.cssText = 'margin-top:8px;padding:6px 14px;background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius-lg);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);display:block';
-    useBtn.textContent = '✦ Use this draft in composer';
-    useBtn.onclick = () => {
-      // Open composer and pre-fill with this draft
-      openComposerForReply();
-      setTimeout(() => {
-        const bodyEl = document.getElementById('r-body');
-        const subjectEl = document.getElementById('r-subject');
-        if (bodyEl) bodyEl.value = draftText;
-        if (subjectEl) subjectEl.value = 'Re: ' + currentEmail.subject.replace(/^re:\s*/i,'');
-        showComposePart('result');
-        document.getElementById('compose-insight').textContent =
-          `Claude read ${threadCount > 1 ? 'full thread (' + threadCount + ' emails)' : 'this email'} and drafted a reply matching your writing style.`;
-      }, 300);
-    };
-
-    const lastBubble = document.querySelector('#claude-chat-msgs .chat-msg:last-child .chat-bubble');
-    if (lastBubble) lastBubble.after(useBtn);
+    setTimeout(() => {
+      const msgs = document.getElementById('claude-chat-msgs');
+      const lastMsg = msgs.querySelector('.chat-msg:last-child');
+      if (lastMsg) {
+        const btn = document.createElement('button');
+        btn.style.cssText = 'margin:6px 0 0 0;padding:7px 16px;background:var(--ms-blue);color:#fff;border:none;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)';
+        btn.innerHTML = '✦ Open in composer to edit & send';
+        btn.onclick = () => {
+          openComposerForReply();
+          setTimeout(() => {
+            const bodyEl = document.getElementById('r-body');
+            const subjectEl = document.getElementById('r-subject');
+            const toEl = document.getElementById('r-to');
+            if (bodyEl) bodyEl.value = draftText;
+            if (subjectEl) subjectEl.value = 'Re: ' + currentEmail.subject.replace(/^re:\s*/i,'');
+            if (toEl) toEl.value = `${currentEmail.sender} <${currentEmail.from}>`;
+            showComposePart('result');
+            document.getElementById('compose-insight').textContent = `✅ Claude read ${threadCount} email${threadCount!==1?'s':''} in thread — ${why}`;
+          }, 300);
+        };
+        lastMsg.appendChild(btn);
+        msgs.scrollTop = msgs.scrollHeight;
+      }
+    }, 100);
 
   } catch(err) {
     thinking.remove();
-    // Fallback: build a smart template from thread
-    const senderFirst = (currentEmail.sender || '').split(' ')[0];
-    const myFirst = ME.name.split(' ')[0];
-    const draft = `Hi ${senderFirst},\n\nThank you for your email regarding "${currentEmail.subject.replace(/^re:\s*/i,'')}".\n\n[Add your response here — Claude could not connect to draft automatically.]\n\nPlease let me know if you have any further questions.\n\nBest regards,\n${ME.name}`;
+    // CORS or API failure — show honest message and use smart template
+    const senderFirst = (currentEmail.sender||'').split(' ')[0] || 'there';
+    const myFirst = ME.name.split(' ')[0] || ME.name;
 
-    addChatMsg('claude', `I couldn't connect to Claude AI to draft the reply automatically. Here is a template based on the email:\n\n**Draft reply:**\n\n${draft}\n\nYou can edit this and use it as your reply.`);
+    // Build best-effort template from actual thread content
+    const hasQuestion = fullBody.includes('?');
+    const needsAction = /please|could you|can you|would you|kindly|request/i.test(fullBody);
+    let bodyContent = '';
+    if (hasQuestion) bodyContent = 'Thank you for your email. To answer your question — [please add your response].';
+    else if (needsAction) bodyContent = 'Thank you for reaching out. I will [add your response to the requested action].';
+    else bodyContent = 'Thank you for your email. [Add your response here].';
+
+    // Detect sign-off from sent emails
+    const mySignoff = sentSamples.match(/\b(Kind regards|Best regards|Thanks|Cheers|Best wishes|Warm regards)\b/i)?.[0] || 'Best regards';
+    const draft = `Hi ${senderFirst},\n\n${bodyContent}\n\nPlease let me know if you have any further questions.\n\n${mySignoff},\n${ME.name}`;
+
+    addChatMsg('claude',
+      `⚠️ **Claude AI could not connect** (browser security blocks direct API calls from GitHub Pages).\n\n` +
+      `I read the email and created a smart template based on it:\n\n**Draft:**\n\n${draft}\n\n` +
+      `**To get real AI drafts**, open the ✦ Ask Claude panel and type:\n_"Draft a reply to ${currentEmail.sender} about ${currentEmail.subject}"_`
+    );
+
+    // Still offer to use the template
+    setTimeout(() => {
+      const msgs = document.getElementById('claude-chat-msgs');
+      const lastMsg = msgs.querySelector('.chat-msg:last-child');
+      if (lastMsg) {
+        const btn = document.createElement('button');
+        btn.style.cssText = 'margin:6px 0 0 0;padding:7px 16px;background:var(--ms-blue);color:#fff;border:none;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)';
+        btn.innerHTML = 'Use template in composer';
+        btn.onclick = () => {
+          openComposerForReply();
+          setTimeout(() => {
+            const bodyEl = document.getElementById('r-body');
+            const subjectEl = document.getElementById('r-subject');
+            if (bodyEl) bodyEl.value = draft;
+            if (subjectEl) subjectEl.value = 'Re: ' + currentEmail.subject.replace(/^re:\s*/i,'');
+            showComposePart('result');
+            document.getElementById('compose-insight').textContent = 'Smart template generated from email content.';
+          }, 300);
+        };
+        lastMsg.appendChild(btn);
+        msgs.scrollTop = msgs.scrollHeight;
+      }
+    }, 100);
   }
 
   chatSearching = false;
