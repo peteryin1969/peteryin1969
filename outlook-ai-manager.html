@@ -665,7 +665,11 @@ async function handleOAuthCallback() {
     setLoaderMsg('Loading your profile...', 50);
     await loadProfile();
     setLoaderMsg('Fetching your inbox...', 75);
-    await loadEmails('inbox');
+    try {
+      loadedEmails = await loadEmails('inbox');
+    } catch(e) {
+      loadedEmails = [];
+    }
     setLoaderMsg('Almost ready...', 95);
     setTimeout(() => launchApp(), 400);
     return true;
@@ -680,16 +684,26 @@ async function graphFetch(url, opts = {}) {
   if (!accessToken || Date.now() > tokenExpiry - 60000) {
     await refreshToken();
   }
-  const res = await fetch(GRAPH + url, {
-    ...opts,
-    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) }
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Graph error ${res.status}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(GRAPH + url, {
+      ...opts,
+      signal: controller.signal,
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Graph error ${res.status}`);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  } catch(e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error('Request timed out. Please check your connection and try again.');
+    throw e;
   }
-  if (res.status === 204) return null;
-  return res.json();
 }
 
 async function refreshToken() {
@@ -724,7 +738,7 @@ const FOLDER_MAP = {
 
 async function loadEmails(folder, filter) {
   const path = FOLDER_MAP[folder] || `/me/mailFolders/${folder}/messages`;
-  let query = '?$top=50&$select=id,subject,from,toRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,body,importance&$orderby=receivedDateTime desc';
+  let query = '?$top=20&$select=id,subject,from,toRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance&$orderby=receivedDateTime desc';
   if (filter === 'unread') query += '&$filter=isRead eq false';
   if (filter === 'attach') query += '&$filter=hasAttachments eq true';
   const data = await graphFetch(path + query);
