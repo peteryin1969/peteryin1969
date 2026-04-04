@@ -1206,96 +1206,165 @@ async function runSearch() {
   document.getElementById('email-view').style.display = 'none';
   document.getElementById('attachment-view').style.display = 'none';
   document.getElementById('search-results-view').classList.add('open');
-  document.getElementById('sr-title').textContent = `AI searching: "${q}"`;
+  document.getElementById('sr-title').textContent = `Searching: "${q}"`;
   document.getElementById('sr-list').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 0;gap:12px;">
     <div class="dot-loader"><span></span><span></span><span></span></div>
-    <div class="loading-msg" id="sr-load-msg">Asking Claude AI to search your emails...</div>
+    <div class="loading-msg" id="sr-load-msg">Searching your mailbox...</div>
   </div>`;
 
-  // Build a compact summary of all loaded emails to send to Claude
-  const emailSummaries = loadedEmails.map((e, i) => ({
-    index: i,
-    id: e.id,
-    sender: e.sender,
-    from: e.from,
-    subject: e.subject,
-    preview: e.preview,
-    date: e.time,
-    unread: e.unread,
-    hasAttachment: e.attachment,
-    attachments: (e.attachmentNames || []).join(', '),
-    tags: e.tags.join(', ')
-  }));
+  // ── INTENT PARSING ──
+  // Understand natural language queries before searching
+  const ql = q.toLowerCase();
+  const intent = {
+    senderName: null,
+    keywords: [],
+    unreadOnly: false,
+    hasAttachment: false,
+    dateRange: null,
+    interpretation: ''
+  };
 
-  const prompt = `You are an intelligent email search assistant. The user has ${emailSummaries.length} emails loaded.
+  // Detect "from X" / "emails from X" / "X email"
+  const fromMatch = ql.match(/(?:from|by|sent by)\s+([a-z]+(?:\s+[a-z]+)?)/i)
+    || ql.match(/^([a-z]+(?:\s+[a-z]+)?)\s+email/i)
+    || ql.match(/^([a-z]+(?:\s+[a-z]+)?)\s+sent/i);
+  if (fromMatch) intent.senderName = fromMatch[1].trim();
 
-User's search query: "${q}"
+  // Detect unread/unanswered
+  if (/unread|haven.t read|not read|new email/.test(ql)) intent.unreadOnly = true;
 
-Here is a summary of all their emails (index, sender, subject, preview):
-${JSON.stringify(emailSummaries)}
+  // Detect attachment queries
+  if (/attachment|attached|pdf|excel|word|spreadsheet|document|file/.test(ql)) intent.hasAttachment = true;
 
-Your job:
-1. Understand what the user is really looking for — even if the query is vague or conversational
-2. Find ALL emails that match the intent of the query
-3. Return the matching email IDs with a clear explanation of why each matches
+  // Detect date ranges
+  if (/today/.test(ql)) intent.dateRange = 'today';
+  else if (/yesterday/.test(ql)) intent.dateRange = 'yesterday';
+  else if (/this week|last week/.test(ql)) intent.dateRange = 'week';
+  else if (/this month|last month/.test(ql)) intent.dateRange = 'month';
 
-Respond ONLY with valid JSON, no markdown, no backticks:
-{
-  "interpretation": "one clear sentence explaining how you understood the query",
-  "matchedIds": ["id1", "id2"],
-  "results": [
-    {"id": "id1", "relevance": "short reason why this matches (max 10 words)", "snippet": "key phrase from preview"}
-  ],
-  "summary": "2 sentence summary of what was found",
-  "suggestedAction": "one recommended next step"
-}`;
+  // Extract meaningful keywords (remove common words)
+  const stopWords = new Set(['email','emails','from','about','with','the','and','for','has','have','me','my','find','search','show','get','all','any','that','this','what','did','say','sent','tell','need','want']);
+  intent.keywords = ql.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
 
+  // Build human-readable interpretation
+  const parts = [];
+  if (intent.senderName) parts.push(`emails from "${intent.senderName}"`);
+  if (intent.unreadOnly) parts.push('unread only');
+  if (intent.hasAttachment) parts.push('with attachments');
+  if (intent.dateRange) parts.push(`from ${intent.dateRange}`);
+  if (intent.keywords.length && !intent.senderName) parts.push(`containing "${intent.keywords.slice(0,3).join('", "')}"`);
+  intent.interpretation = parts.length ? 'Looking for ' + parts.join(', ') : `Searching for "${q}"`;
+
+  // ── STEP 1: Microsoft Graph full-mailbox search ──
+  let graphResults = [];
   try {
-    document.getElementById('sr-load-msg') && (document.getElementById('sr-load-msg').textContent = 'Claude is reading your emails...');
+    const el = document.getElementById('sr-load-msg');
+    if (el) el.textContent = 'Searching your full mailbox on Microsoft servers...';
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
+    // Build Graph search query - searches subject, body, sender, attachments server-side
+    const searchTerm = intent.senderName || intent.keywords.slice(0,3).join(' ') || q;
+    const graphUrl = `/me/messages?$search="${searchTerm.replace(/"/g,'')}"&$top=50&$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview,importance&$orderby=receivedDateTime desc`;
 
-    const data = await res.json();
-
-    if (data.error) throw new Error(data.error.message);
-
-    const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-
-    // Map matched IDs back to actual email objects
-    const matched = loadedEmails.filter(e => parsed.matchedIds.includes(e.id));
-
-    renderSearchResults(parsed, q, matched);
-
-  } catch(err) {
-    // Fallback to local keyword search if Claude API fails
-    document.getElementById('sr-load-msg') && (document.getElementById('sr-load-msg').textContent = 'Falling back to keyword search...');
-    const kw = q.toLowerCase().split(/\s+/).filter(w => w.length > 1);
-    const matched = loadedEmails.filter(e => kw.some(k =>
-      e.subject.toLowerCase().includes(k) ||
-      e.body.toLowerCase().includes(k) ||
-      e.sender.toLowerCase().includes(k) ||
-      e.from.toLowerCase().includes(k) ||
-      (e.attachmentNames || []).some(n => n.toLowerCase().includes(k))
-    ));
-    matched.sort((a, b) => (b.rawDate || 0) - (a.rawDate || 0));
-    renderSearchResults({
-      interpretation: `Keyword search for "${q}" (AI unavailable)`,
-      filters: kw,
-      matchedIds: matched.map(e => e.id),
-      results: matched.map(e => ({ id: e.id, relevance: 'Keyword match', snippet: e.preview })),
-      summary: `${matched.length} email${matched.length !== 1 ? 's' : ''} found matching "${q}".`,
-      suggestedAction: matched.length ? 'Click any result to read the email.' : 'Try different keywords.'
-    }, q, matched);
+    const res = await graphFetch(graphUrl);
+    graphResults = (res?.value || []).map(m => normaliseMessage(m, 'inbox'));
+  } catch(e) {
+    const el = document.getElementById('sr-load-msg');
+    if (el) el.textContent = 'Graph search unavailable, searching locally...';
   }
+
+  // ── STEP 2: Local search across all 500 loaded emails ──
+  const el2 = document.getElementById('sr-load-msg');
+  if (el2) el2.textContent = 'Matching against your loaded emails...';
+
+  const localMatched = loadedEmails.filter(e => {
+    // Filter by sender name if detected
+    if (intent.senderName) {
+      const senderLower = e.sender.toLowerCase() + ' ' + e.from.toLowerCase();
+      if (!senderLower.includes(intent.senderName.toLowerCase())) return false;
+    }
+    // Filter unread
+    if (intent.unreadOnly && !e.unread) return false;
+    // Filter attachments
+    if (intent.hasAttachment && !e.attachment) return false;
+    // Filter by date range
+    if (intent.dateRange) {
+      const now = new Date();
+      const emailDate = e.rawDate || new Date();
+      const diffDays = (now - emailDate) / 86400000;
+      if (intent.dateRange === 'today' && diffDays > 1) return false;
+      if (intent.dateRange === 'yesterday' && (diffDays < 1 || diffDays > 2)) return false;
+      if (intent.dateRange === 'week' && diffDays > 7) return false;
+      if (intent.dateRange === 'month' && diffDays > 31) return false;
+    }
+    // Match keywords if no sender filter OR as extra filter
+    if (intent.keywords.length && !intent.senderName) {
+      return intent.keywords.some(k =>
+        e.subject.toLowerCase().includes(k) ||
+        e.body.toLowerCase().includes(k) ||
+        e.sender.toLowerCase().includes(k) ||
+        e.from.toLowerCase().includes(k) ||
+        (e.attachmentNames || []).some(n => n.toLowerCase().includes(k))
+      );
+    }
+    return true;
+  });
+
+  // ── STEP 3: Merge Graph + local results, deduplicate ──
+  const seenIds = new Set(localMatched.map(e => e.graphId));
+  const graphExtra = graphResults.filter(e => !seenIds.has(e.graphId));
+  let allMatched = [...localMatched, ...graphExtra];
+
+  // ── STEP 4: Score and rank results ──
+  allMatched = allMatched.map(e => {
+    let score = 0;
+    const kw = intent.keywords;
+    const sn = intent.senderName?.toLowerCase() || '';
+    if (sn && (e.sender.toLowerCase().includes(sn) || e.from.toLowerCase().includes(sn))) score += 10;
+    if (kw.some(k => e.subject.toLowerCase().includes(k))) score += 5;
+    if (kw.some(k => e.body.toLowerCase().includes(k))) score += 3;
+    if (e.unread) score += 1;
+    if (e.attachment && intent.hasAttachment) score += 4;
+    return { ...e, score };
+  }).sort((a, b) => b.score - a.score || (b.rawDate || 0) - (a.rawDate || 0));
+
+  // ── STEP 5: Build relevance reasons ──
+  const results = allMatched.map(e => {
+    let relevance = 'Matches your search';
+    const sn = intent.senderName?.toLowerCase() || '';
+    const kw = intent.keywords;
+    if (sn && (e.sender.toLowerCase().includes(sn) || e.from.toLowerCase().includes(sn))) {
+      relevance = `From ${e.sender.split('→').pop().trim()}`;
+    } else if (kw.some(k => e.subject.toLowerCase().includes(k))) {
+      const matchedKw = kw.find(k => e.subject.toLowerCase().includes(k));
+      relevance = `Subject contains "${matchedKw}"`;
+    } else if ((e.attachmentNames || []).some(n => kw.some(k => n.toLowerCase().includes(k)))) {
+      relevance = 'Attachment: ' + e.attachmentNames.filter(n => kw.some(k => n.toLowerCase().includes(k))).join(', ');
+    } else if (kw.some(k => e.body.toLowerCase().includes(k))) {
+      const matchedKw = kw.find(k => e.body.toLowerCase().includes(k));
+      relevance = `Body contains "${matchedKw}"`;
+    }
+    return { id: e.id, relevance, snippet: e.preview };
+  });
+
+  // ── STEP 6: Build summary ──
+  const total = allMatched.length;
+  const unreadCount = allMatched.filter(e => e.unread).length;
+  const attachCount = allMatched.filter(e => e.attachment).length;
+  let summary = total
+    ? `Found ${total} email${total !== 1 ? 's' : ''}${intent.senderName ? ` from ${intent.senderName}` : ''}.`
+    : `No emails found for "${q}".`;
+  if (unreadCount > 0) summary += ` ${unreadCount} unread.`;
+  if (attachCount > 0) summary += ` ${attachCount} with attachments.`;
+  if (graphExtra.length > 0) summary += ` (${graphExtra.length} from full mailbox search)`;
+
+  renderSearchResults({
+    interpretation: intent.interpretation,
+    filters: intent.keywords,
+    matchedIds: allMatched.map(e => e.id),
+    results,
+    summary,
+    suggestedAction: total ? 'Click any result to open the full email.' : 'Try different keywords or a sender name.'
+  }, q, allMatched);
 }
 
 function renderSearchResults(data, q, emails) {
