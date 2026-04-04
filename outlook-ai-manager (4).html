@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Outlook AI — Email Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ms-blue:#0078d4; --ms-blue-dark:#005a9e; --ms-blue-light:#deecf9; --ms-blue-mid:#c7e0f4;
+  --bg:#f3f2f1; --surface:#fff; --surface2:#faf9f8;
+  --border:rgba(0,0,0,0.08); --border2:rgba(0,0,0,0.14);
+  --text:#201f1e; --text2:#605e5c; --text3:#a19f9d;
+  --urgent:#d13438; --success:#107c10;
+  --radius:6px; --radius-lg:10px;
+  --shadow:0 2px 8px rgba(0,0,0,0.08); --shadow-lg:0 8px 32px rgba(0,0,0,0.12);
+  --font:'DM Sans',sans-serif; --mono:'DM Mono',monospace;
+  --sidebar-w:220px; --list-w:320px; --topbar-h:52px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;-webkit-font-smoothing:antialiased}
+.screen{display:none;width:100%;height:100%}
+.screen.active{display:flex}
+
+/* AUTH */
+#auth-screen{flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#0078d4 0%,#005a9e 50%,#003b6b 100%);position:relative;overflow:hidden}
+#auth-screen::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:rgba(255,255,255,0.04);top:-200px;right:-200px}
+#auth-screen::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:rgba(255,255,255,0.03);bottom:-100px;left:-100px}
+.auth-card{background:var(--surface);border-radius:16px;padding:44px 40px;width:420px;box-shadow:0 24px 64px rgba(0,0,0,0.3);position:relative;z-index:1;animation:slideUp 0.5s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+.auth-logo svg{width:28px;height:28px}
+.auth-logo span{font-size:17px;font-weight:600;color:var(--text)}
+.auth-card h1{font-size:22px;font-weight:600;color:var(--text);margin-bottom:5px}
+.auth-subtitle{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.5}
+
+.auth-features{display:flex;flex-direction:column;gap:8px;margin-bottom:28px}
+.auth-feature{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2)}
+.auth-feature-dot{width:28px;height:28px;border-radius:50%;background:var(--ms-blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.auth-feature-dot svg{color:var(--ms-blue)}
+.auth-error{display:none;background:#fde7e9;border:1px solid #f4abab;border-radius:var(--radius);padding:9px 12px;font-size:12px;color:#8e0000;margin-bottom:14px;align-items:flex-start;gap:8px;line-height:1.5}
+.auth-error.show{display:flex}
+.btn-signin{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px 20px;background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius-lg);font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;transition:background 0.15s,transform 0.1s;margin-bottom:10px}
+.btn-signin:hover{background:var(--ms-blue-dark)}
+.btn-signin:active{transform:scale(0.98)}
+.btn-signin:disabled{background:var(--text3);cursor:not-allowed}
+.auth-note{margin-top:16px;font-size:11px;color:var(--text3);text-align:center;line-height:1.6}
+
+/* LOADING */
+#loading-screen{flex-direction:column;align-items:center;justify-content:center;background:var(--surface);gap:20px}
+.loader-logo{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.loader-logo span{font-size:17px;font-weight:600;color:var(--text)}
+.loader-bar{width:240px;height:3px;background:var(--bg);border-radius:2px;overflow:hidden}
+.loader-fill{height:100%;background:var(--ms-blue);border-radius:2px;width:0%;transition:width 0.4s ease}
+.loader-msg{font-size:13px;color:var(--text2)}
+
+/* APP */
+#app-screen{flex-direction:column}
+.topbar{height:var(--topbar-h);background:var(--ms-blue);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;position:relative;z-index:100}
+.topbar-logo{display:flex;align-items:center;gap:8px;color:#fff;font-size:15px;font-weight:600;flex-shrink:0}
+.search-container{flex:1;position:relative;max-width:680px;margin:0 auto}
+.search-box{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:7px 12px;transition:all 0.2s}
+.search-box:focus-within{background:#fff;border-color:#fff}
+.search-box:focus-within .search-icon{color:var(--text3)}
+.search-box:focus-within input{color:var(--text)}
+.search-box:focus-within input::placeholder{color:var(--text3)}
+.search-icon{color:rgba(255,255,255,0.7);flex-shrink:0}
+.search-box input{flex:1;border:none;outline:none;background:transparent;font-size:13px;font-family:var(--font);color:#fff}
+.search-box input::placeholder{color:rgba(255,255,255,0.6)}
+.search-mode-btn{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:none;font-family:var(--font);flex-shrink:0;transition:all 0.15s}
+.search-mode-btn.ai{background:rgba(255,255,255,0.9);color:var(--ms-blue)}
+.search-mode-btn.kw{background:rgba(255,255,255,0.2);color:rgba(255,255,255,0.9)}
+.search-run-btn{padding:5px 12px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font);flex-shrink:0;transition:background 0.15s}
+.search-run-btn:hover{background:rgba(255,255,255,0.3)}
+.search-suggestions{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--border);overflow:hidden;display:none;z-index:200}
+.search-suggestions.open{display:block;animation:fadeDown 0.15s ease}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.sugg-group-label{padding:10px 14px 4px;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:0.06em;text-transform:uppercase}
+.sugg-item{display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:13px;color:var(--text2);cursor:pointer;transition:background 0.1s}
+.sugg-item:hover{background:var(--bg);color:var(--text)}
+.sugg-item svg{color:var(--ms-blue);flex-shrink:0}
+.topbar-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0}
+.topbar-icon-btn{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;transition:background 0.15s}
+.topbar-icon-btn:hover{background:rgba(255,255,255,0.25)}
+.user-avatar{width:32px;height:32px;border-radius:50%;background:#fff;color:var(--ms-blue);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;position:relative}
+.user-menu{position:absolute;top:36px;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:8px 0;min-width:180px;display:none;z-index:300}
+.user-menu.open{display:block}
+.user-menu-item{padding:9px 16px;font-size:13px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:8px}
+.user-menu-item:hover{background:var(--bg);color:var(--text)}
+.user-menu-divider{height:1px;background:var(--border);margin:4px 0}
+.user-info{padding:10px 16px 8px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.user-info .name{font-size:13px;font-weight:600;color:var(--text)}
+.user-info .email{font-size:11px;color:var(--text3)}
+
+.app-body{display:flex;flex:1;overflow:hidden}
+.sidebar{width:var(--sidebar-w);background:var(--surface2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sidebar-compose{margin:12px 12px 4px;padding:9px;background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius-lg);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;transition:background 0.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.sidebar-compose:hover{background:var(--ms-blue-dark)}
+.sidebar-section{font-size:10px;font-weight:600;color:var(--text3);padding:14px 16px 5px;letter-spacing:0.06em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:13px;color:var(--text2);cursor:pointer;transition:all 0.1s;position:relative}
+.nav-item:hover{background:rgba(0,0,0,0.04);color:var(--text)}
+.nav-item.active{background:var(--ms-blue-light);color:var(--ms-blue);font-weight:500}
+.nav-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ms-blue);border-radius:0 2px 2px 0}
+.nav-badge{margin-left:auto;background:var(--ms-blue);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600}
+.sidebar-divider{height:1px;background:var(--border);margin:6px 0}
+
+.email-list-panel{width:var(--list-w);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.panel-header{padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.panel-title{font-size:16px;font-weight:600;color:var(--text);flex:1}
+.refresh-btn{width:28px;height:28px;border:none;background:transparent;cursor:pointer;color:var(--text3);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.refresh-btn:hover{background:var(--bg);color:var(--text)}
+.filter-btn{padding:4px 10px;border:1px solid var(--border2);border-radius:20px;font-size:11px;color:var(--text2);background:var(--surface);cursor:pointer;font-family:var(--font);transition:all 0.1s}
+.filter-btn.on{background:var(--ms-blue-light);border-color:var(--ms-blue);color:var(--ms-blue)}
+.filter-bar{display:flex;gap:5px;padding:8px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0}
+.email-list{flex:1;overflow-y:auto}
+.email-row{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s;position:relative}
+.email-row:hover{background:var(--bg)}
+.email-row.selected{background:var(--ms-blue-light)}
+.email-row.unread .er-sender{font-weight:600}
+.email-row.unread::before{content:'';position:absolute;left:4px;top:50%;transform:translateY(-50%);width:5px;height:5px;border-radius:50%;background:var(--ms-blue)}
+.er-row1{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.er-sender{font-size:13px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.er-time{font-size:11px;color:var(--text3);flex-shrink:0}
+.er-subject{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.er-preview{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.er-tags{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.tag{padding:2px 7px;border-radius:10px;font-size:10px;font-weight:500}
+.tag-budget{background:#deecf9;color:#003b6b}
+.tag-urgent{background:#fde7e9;color:#8e0000}
+.tag-meeting{background:#dff6dd;color:#054b16}
+.tag-hr{background:#fef0cd;color:#5c3f00}
+.tag-tech{background:#ede8f8;color:#3b2a6e}
+.er-attach{color:var(--text3)}
+.empty-list{padding:40px 20px;text-align:center;color:var(--text3);font-size:13px}
+.list-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:12px;padding:40px 0}
+
+.detail-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--surface)}
+.detail-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text3)}
+.detail-empty-icon{width:56px;height:56px;opacity:0.3}
+.detail-content{flex:1;overflow-y:auto;padding:24px 28px;display:none}
+.detail-subject{font-size:20px;font-weight:600;color:var(--text);margin-bottom:12px;line-height:1.3}
+.detail-meta{font-size:13px;color:var(--text2);line-height:1.9;margin-bottom:16px}
+.detail-meta strong{color:var(--text);font-weight:500}
+.detail-actions{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.action-btn{padding:7px 14px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font);color:var(--text2);transition:all 0.1s;display:flex;align-items:center;gap:5px}
+.action-btn:hover{background:var(--bg);color:var(--text)}
+.action-btn.primary{background:var(--ms-blue);color:#fff;border-color:var(--ms-blue)}
+.action-btn.primary:hover{background:var(--ms-blue-dark)}
+.action-btn.ai{background:var(--ms-blue-light);color:var(--ms-blue);border-color:var(--ms-blue-mid)}
+.action-btn.ai:hover{background:var(--ms-blue-mid)}
+.detail-body{font-size:14px;color:var(--text);line-height:1.8;border-top:1px solid var(--border);padding-top:20px;white-space:pre-wrap;word-break:break-word}
+.ai-quick-bar{border-top:1px solid var(--border);padding:10px 16px;background:var(--surface2);display:none}
+.ai-quick-label{font-size:11px;color:var(--text3);margin-bottom:7px;font-weight:500}
+.ai-chips{display:flex;gap:6px;flex-wrap:wrap}
+.ai-chip{padding:5px 12px;border:1px solid var(--border2);border-radius:20px;font-size:12px;color:var(--text2);background:var(--surface);cursor:pointer;font-family:var(--font);transition:all 0.1s}
+.ai-chip:hover{border-color:var(--ms-blue);color:var(--ms-blue)}
+
+.search-results-view{display:none;flex:1;flex-direction:column;overflow:hidden}
+.search-results-view.open{display:flex}
+.sr-topbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.sr-topbar h2{font-size:15px;font-weight:600;color:var(--text);flex:1}
+.sr-close{background:none;border:none;cursor:pointer;color:var(--text2);font-size:20px;line-height:1;padding:2px}
+.sr-body{display:flex;flex:1;overflow:hidden}
+.sr-list{width:380px;border-right:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.sr-detail{flex:1;overflow-y:auto;padding:20px 24px}
+.interp-card{background:var(--ms-blue-light);border:1px solid var(--ms-blue-mid);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:4px}
+.interp-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.interp-top span{font-size:12px;font-weight:600;color:var(--ms-blue)}
+.interp-desc{font-size:12px;color:#003b6b;line-height:1.6}
+.interp-filters{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.interp-filter{padding:3px 10px;background:#fff;border:1px solid var(--ms-blue-mid);border-radius:20px;font-size:11px;color:var(--ms-blue);font-weight:500}
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:all 0.15s}
+.result-card:hover{border-color:var(--ms-blue);box-shadow:0 2px 8px rgba(0,120,212,0.12)}
+.result-card.sel{border-color:var(--ms-blue);background:var(--ms-blue-light)}
+.rc-top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.rc-sender{font-size:13px;font-weight:600;color:var(--text);flex:1}
+.rc-time{font-size:11px;color:var(--text3)}
+.rc-subject{font-size:12px;color:var(--text2);margin-bottom:4px}
+.rc-snippet{font-size:11px;color:var(--text3);line-height:1.5}
+.rc-why{font-size:11px;color:var(--ms-blue);margin-top:5px;font-style:italic}
+.summary-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+.summary-card h4{font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px}
+.summary-card p{font-size:13px;color:var(--text2);line-height:1.6}
+.summary-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.no-results{padding:40px 20px;text-align:center;color:var(--text3);font-size:13px}
+mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
+
+/* COMPOSER */
+.composer-panel{display:none;position:fixed;top:var(--topbar-h);right:0;bottom:0;width:520px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,0.08);z-index:50;flex-direction:column;animation:slideInRight 0.25s ease}
+.composer-panel.open{display:flex}
+@keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.composer-header{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.composer-header h2{font-size:16px;font-weight:600;flex:1}
+.composer-close{background:none;border:none;cursor:pointer;color:var(--text2);font-size:20px;line-height:1}
+.composer-body{display:flex;flex:1;overflow:hidden}
+.composer-left{width:220px;border-right:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}
+.composer-right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.field-label{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:5px}
+.field-input{width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;font-family:var(--font);color:var(--text);background:var(--surface);outline:none;transition:border-color 0.15s}
+.field-input:focus{border-color:var(--ms-blue)}
+.field-select{width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;font-family:var(--font);color:var(--text);background:var(--surface);outline:none;cursor:pointer}
+.tone-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.tone-opt{padding:6px 8px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;color:var(--text2);cursor:pointer;text-align:center;transition:all 0.1s;font-family:var(--font);background:var(--surface)}
+.tone-opt.on{background:var(--ms-blue-light);border-color:var(--ms-blue);color:var(--ms-blue);font-weight:500}
+.ctx-list{display:flex;flex-direction:column;gap:4px}
+.ctx-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all 0.1s}
+.ctx-item:hover{border-color:var(--ms-blue)}
+.ctx-item.on{border-color:var(--ms-blue);background:var(--ms-blue-light)}
+.ctx-checkbox{width:14px;height:14px;border:2px solid currentColor;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;color:var(--text3)}
+.ctx-item.on .ctx-checkbox{background:var(--ms-blue);border-color:var(--ms-blue);color:#fff}
+.ctx-label{font-size:12px;color:var(--text2);line-height:1.4;flex:1;overflow:hidden}
+.ctx-label strong{display:block;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gen-btn{width:100%;padding:10px;background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius-lg);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.gen-btn:hover{background:var(--ms-blue-dark)}
+.gen-btn:disabled{background:var(--text3);cursor:not-allowed}
+.compose-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.compose-idle{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text3);padding:24px;text-align:center}
+.compose-idle p{font-size:13px;max-width:220px;line-height:1.6}
+.compose-loading{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.compose-result{flex:1;display:none;flex-direction:column;overflow:hidden}
+.insight-bar{padding:8px 14px;background:var(--ms-blue-light);border-bottom:1px solid var(--ms-blue-mid);font-size:12px;color:#003b6b;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.c-field-row{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.c-field-label{font-size:12px;color:var(--text3);min-width:52px}
+.c-field-val{flex:1;border:none;outline:none;font-size:13px;font-family:var(--font);color:var(--text);background:transparent}
+.c-body-area{flex:1;padding:14px;overflow-y:auto}
+.c-body-area textarea{width:100%;height:100%;min-height:180px;border:none;outline:none;font-size:13px;font-family:var(--font);color:var(--text);background:transparent;resize:none;line-height:1.7}
+.c-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;background:var(--surface2)}
+.c-send-btn{background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius);padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.c-send-btn:hover{background:var(--ms-blue-dark)}
+.c-adj-btn{padding:5px 11px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);font-size:11px;cursor:pointer;color:var(--text2);font-family:var(--font)}
+.c-adj-btn:hover{background:var(--bg)}
+.c-discard{margin-left:auto}
+
+.dot-loader{display:flex;gap:5px}
+.dot-loader span{width:8px;height:8px;border-radius:50%;background:var(--ms-blue);animation:dotPulse 1.2s infinite}
+.dot-loader span:nth-child(2){animation-delay:0.2s}
+.dot-loader span:nth-child(3){animation-delay:0.4s}
+@keyframes dotPulse{0%,80%,100%{opacity:0.2;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}
+.loading-msg{font-size:13px;color:var(--text2)}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* OAuth callback overlay */
+#oauth-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center}
+#oauth-overlay.show{display:flex}
+.oauth-card{background:var(--surface);border-radius:16px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:var(--shadow-lg)}
+.oauth-card h3{font-size:17px;font-weight:600;color:var(--text);margin-bottom:8px}
+.oauth-card p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px}
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen" class="screen active">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 28 28" fill="none"><rect width="13" height="13" fill="#F25022"/><rect x="15" width="13" height="13" fill="#7FBA00"/><rect y="15" width="13" height="13" fill="#00A4EF"/><rect x="15" y="15" width="13" height="13" fill="#FFB900"/></svg>
+      <span>Outlook AI</span>
+    </div>
+    <h1>Your personal inbox,<br>powered by AI</h1>
+    <div class="auth-subtitle" style="margin-bottom:24px">Sign in with your personal Microsoft account — outlook.com, hotmail.com, or live.com. No setup required.</div>
+
+    <div class="auth-features">
+      <div class="auth-feature">
+        <div class="auth-feature-dot">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14v10H1V3zm1 2v7h12V5H2zm0-1h12V3H2v1z"/></svg>
+        </div>
+        Read and manage your real inbox
+      </div>
+      <div class="auth-feature">
+        <div class="auth-feature-dot">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+        </div>
+        Search with plain language using AI
+      </div>
+      <div class="auth-feature">
+        <div class="auth-feature-dot">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 1L15 2.5l-1 1L12.5 2l1-1zM2 11.5V13h1.5l8-8-1.5-1.5-8 8z"/></svg>
+        </div>
+        AI drafts replies in your writing style
+      </div>
+      <div class="auth-feature">
+        <div class="auth-feature-dot">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M15.1 1L1 7l5 2.5L15.1 1zM6 9.5V15l3-3.5L15.1 1 6 9.5z"/></svg>
+        </div>
+        Send emails directly from the app
+      </div>
+    </div>
+
+    <div class="auth-error" id="auth-error">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;margin-top:1px"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3v4H7V4h1zm0 6v1H7v-1h1z"/></svg>
+      <span id="auth-error-msg">Sign-in failed. Please try again.</span>
+    </div>
+
+    <button class="btn-signin" id="oauth-btn" onclick="startOAuth()">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect width="8.5" height="8.5" fill="#F25022"/><rect x="9.5" width="8.5" height="8.5" fill="#7FBA00"/><rect y="9.5" width="8.5" height="8.5" fill="#00A4EF"/><rect x="9.5" y="9.5" width="8.5" height="8.5" fill="#FFB900"/></svg>
+      Sign in with Microsoft
+    </button>
+
+    <div class="auth-note">
+      Secure OAuth 2.0 — Microsoft's own login page handles your password.<br>
+      This app never sees your credentials. Works with outlook.com, hotmail.com &amp; live.com.
+    </div>
+  </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen" class="screen">
+  <div class="loader-logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect width="10" height="10" fill="#F25022"/><rect x="12" width="10" height="10" fill="#7FBA00"/><rect y="12" width="10" height="10" fill="#00A4EF"/><rect x="12" y="12" width="10" height="10" fill="#FFB900"/></svg>
+    <span>Outlook AI</span>
+  </div>
+  <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
+  <div class="loader-msg" id="loader-msg">Connecting to Microsoft...</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-screen" class="screen" style="flex-direction:column">
+  <div class="topbar">
+    <div class="topbar-logo">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect width="8.5" height="8.5" fill="rgba(255,255,255,0.9)"/><rect x="9.5" width="8.5" height="8.5" fill="rgba(255,255,255,0.7)"/><rect y="9.5" width="8.5" height="8.5" fill="rgba(255,255,255,0.7)"/><rect x="9.5" y="9.5" width="8.5" height="8.5" fill="rgba(255,255,255,0.5)"/></svg>
+      Outlook AI
+    </div>
+    <div class="search-container">
+      <div class="search-box">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+        <input id="search-input" type="text" placeholder='Try: "emails from Sarah about budget" or "meeting requests"'
+          onkeydown="handleSearchKey(event)" oninput="onSearchInput()" onfocus="onSearchFocus()" onblur="onSearchBlur()">
+        <button class="search-mode-btn ai" id="mode-badge" onclick="toggleSearchMode()">✦ AI</button>
+        <button class="search-run-btn" onclick="runSearch()">Search</button>
+      </div>
+      <div class="search-suggestions" id="search-suggestions">
+        <div class="sugg-group-label">Suggested searches</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('emails from today I haven\'t read')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>emails from today I haven't read</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('emails that need my reply')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>emails that need my reply</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('meeting invites this week')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>meeting invites this week</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('anything urgent or action required')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>anything urgent or action required</div>
+        <div class="sugg-item" onmousedown="pickSuggestion('emails with attachments')"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6.5 6.5 0 1 0-1.4 1.4l3.5 3.5 1.4-1.4-3.5-3.5zm-5.2.7a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>emails with attachments</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="topbar-icon-btn" onclick="openComposer()" title="AI Compose">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 1L15 2.5l-1 1L12.5 2l1-1zM2 11.5V13h1.5l8-8-1.5-1.5-8 8z"/><path d="M1 14h14v1H1z"/></svg>
+      </button>
+      <div class="user-avatar" id="user-avatar" onclick="toggleUserMenu()">?
+        <div class="user-menu" id="user-menu">
+          <div class="user-info">
+            <div class="name" id="menu-name">Loading...</div>
+            <div class="email" id="menu-email"></div>
+          </div>
+          <div class="user-menu-item" onclick="refreshEmails()">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 5A6 6 0 1 0 14 8h-1.5A4.5 4.5 0 1 1 9 3.6V2l4 3-4 3V6.4A4.5 4.5 0 0 1 13.5 5z"/></svg>
+            Refresh inbox
+          </div>
+          <div class="user-menu-divider"></div>
+          <div class="user-menu-item" onclick="signOut()" style="color:var(--urgent)">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2H2v12h4v-1H3V3h3V2zm5 3l-1 1 2 2H5v1h7l-2 2 1 1 3-3-3-3z"/></svg>
+            Sign out
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div class="sidebar">
+      <button class="sidebar-compose" onclick="openComposer()">+ New Email</button>
+      <div class="sidebar-section">Folders</div>
+      <div class="nav-item active" id="nav-inbox" onclick="setFolder('inbox','Inbox',this)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14v10H1V3zm1 2v7h12V5H2zm0-1h12V3H2v1z"/></svg>
+        Inbox <span class="nav-badge" id="unread-badge">0</span>
+      </div>
+      <div class="nav-item" id="nav-sent" onclick="setFolder('sentItems','Sent',this)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M15.1 1L1 7l5 2.5L15.1 1zM6 9.5V15l3-3.5L15.1 1 6 9.5z"/></svg>
+        Sent
+      </div>
+      <div class="nav-item" id="nav-drafts" onclick="setFolder('drafts','Drafts',this)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 1L15 2.5l-1 1L12.5 2l1-1zM2 11.5V13h1.5l8-8-1.5-1.5-8 8z"/></svg>
+        Drafts
+      </div>
+      <div class="nav-item" onclick="setFolder('archive','Archive',this)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h14v3H1V2zm1 4h12v8H2V6zm3 2v1h6V8H5z"/></svg>
+        Archive
+      </div>
+      <div class="nav-item" onclick="setFolder('deleteditems','Trash',this)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2h4v1h4v2H2V3h4V2zM3 6h10l-1 9H4L3 6zm2 2v5h1V8H5zm3 0v5h1V8H8z"/></svg>
+        Trash
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">Smart views</div>
+      <div class="nav-item" onclick="quickSearch('urgent emails that need my attention today')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#d13438"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3v4H7V4h1zm0 6v1H7v-1h1z"/></svg>
+        Urgent
+      </div>
+      <div class="nav-item" onclick="quickSearch('meeting invites and calendar requests')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#107c10"><path d="M2 2h12v12H2V2zm1 4h10V3H3v3zm0 1v6h10V7H3z"/></svg>
+        Meetings
+      </div>
+      <div class="nav-item" onclick="quickSearch('emails with file attachments')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#0078d4"><path d="M14 7l-6 6a4 4 0 0 1-5.7-5.7l6-6a2.5 2.5 0 0 1 3.5 3.5L6 10a1 1 0 0 1-1.4-1.4L10 3l-1-1-5.4 5.4a3 3 0 0 0 4.2 4.2L14 6l-1-1z"/></svg>
+        Attachments
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">AI tools</div>
+      <div class="nav-item" onclick="openComposer()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#0078d4"><path d="M13.5 1L15 2.5l-1 1L12.5 2l1-1zM2 11.5V13h1.5l8-8-1.5-1.5-8 8z"/></svg>
+        AI Composer
+      </div>
+      <div class="nav-item" onclick="quickSearch('summarise everything in my inbox and what needs my attention')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="color:#0078d4"><path d="M2 12h2v2H2v-2zm3-3h2v5H5V9zm3-3h2v8H8V6zm3-3h2v11h-2V3z"/></svg>
+        Inbox Analysis
+      </div>
+    </div>
+
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative">
+      <div id="email-view" style="display:flex;flex:1;overflow:hidden">
+        <div class="email-list-panel">
+          <div class="panel-header">
+            <span class="panel-title" id="folder-title">Inbox</span>
+            <button class="refresh-btn" onclick="refreshEmails()" title="Refresh">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 5A6 6 0 1 0 14 8h-1.5A4.5 4.5 0 1 1 9 3.6V2l4 3-4 3V6.4A4.5 4.5 0 0 1 13.5 5z"/></svg>
+            </button>
+          </div>
+          <div class="filter-bar">
+            <button class="filter-btn on" id="flt-all" onclick="setFilter('all',this)">All</button>
+            <button class="filter-btn" id="flt-unread" onclick="setFilter('unread',this)">Unread</button>
+            <button class="filter-btn" id="flt-attach" onclick="setFilter('attach',this)">Attachments</button>
+          </div>
+          <div class="email-list" id="email-list"></div>
+        </div>
+        <div class="detail-panel">
+          <div class="detail-empty" id="detail-empty">
+            <svg class="detail-empty-icon" viewBox="0 0 56 56" fill="none"><rect x="8" y="10" width="40" height="36" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 18l20 14 20-14" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Select an email to read</span>
+          </div>
+          <div class="detail-content" id="detail-content">
+            <div class="detail-subject" id="d-subject"></div>
+            <div class="detail-meta" id="d-meta"></div>
+            <div class="detail-actions" id="d-actions"></div>
+            <div class="detail-body" id="d-body"></div>
+          </div>
+          <div class="ai-quick-bar" id="ai-quick-bar">
+            <div class="ai-quick-label">✦ Ask Claude about this email</div>
+            <div class="ai-chips">
+              <div class="ai-chip" onclick="aiChip('Summarize this email in 3 bullet points')">Summarize</div>
+              <div class="ai-chip" onclick="aiChip('Draft a professional reply')">Draft reply</div>
+              <div class="ai-chip" onclick="aiChip('What action do I need to take?')">Action needed?</div>
+              <div class="ai-chip" onclick="aiChip('Is this email urgent?')">Is it urgent?</div>
+              <div class="ai-chip" onclick="openComposerForReply()">✦ AI Compose Reply</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-results-view" id="search-results-view">
+        <div class="sr-topbar">
+          <h2 id="sr-title">Search results</h2>
+          <button class="sr-close" onclick="closeSearch()">×</button>
+        </div>
+        <div class="sr-body">
+          <div class="sr-list" id="sr-list"></div>
+          <div class="sr-detail" id="sr-detail">
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3);font-size:13px">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style="opacity:0.3"><rect x="5" y="8" width="26" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M5 14l13 9 13-9" stroke="currentColor" stroke-width="1.5"/></svg>
+              Select a result to read
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPOSER -->
+<div class="composer-panel" id="composer-panel">
+  <div class="composer-header">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" style="color:var(--ms-blue)"><path d="M13.5 1L15 2.5l-1 1L12.5 2l1-1zM2 11.5V13h1.5l8-8-1.5-1.5-8 8z"/></svg>
+    <h2>AI Email Composer</h2>
+    <button class="composer-close" onclick="closeComposer()">×</button>
+  </div>
+  <div class="composer-body">
+    <div class="composer-left">
+      <div>
+        <div class="field-label">Email type</div>
+        <select class="field-select" id="c-type">
+          <option value="reply">Reply to email</option>
+          <option value="followup">Follow-up</option>
+          <option value="new">New email</option>
+          <option value="intro">Introduction</option>
+          <option value="decline">Decline politely</option>
+          <option value="confirm">Confirm / acknowledge</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label">Recipient</div>
+        <input class="field-input" id="c-to" type="text" placeholder="name or email">
+      </div>
+      <div>
+        <div class="field-label">What to say</div>
+        <textarea class="field-input" id="c-intent" rows="3" style="resize:none;line-height:1.5" placeholder="e.g. Accept Thursday meeting, ask about deadline..."></textarea>
+      </div>
+      <div>
+        <div class="field-label">Tone</div>
+        <div class="tone-grid">
+          <button class="tone-opt on" onclick="setTone(this,'professional')">Professional</button>
+          <button class="tone-opt" onclick="setTone(this,'friendly')">Friendly</button>
+          <button class="tone-opt" onclick="setTone(this,'concise')">Concise</button>
+          <button class="tone-opt" onclick="setTone(this,'formal')">Formal</button>
+        </div>
+      </div>
+      <div>
+        <div class="field-label">Context from inbox</div>
+        <div class="ctx-list" id="ctx-list"><div style="font-size:12px;color:var(--text3)">Load emails to select context</div></div>
+      </div>
+      <button class="gen-btn" onclick="generateDraft()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>
+        Generate AI Draft
+      </button>
+    </div>
+    <div class="compose-area">
+      <div class="compose-idle" id="compose-idle">
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style="opacity:0.25"><rect x="6" y="8" width="32" height="28" rx="4" stroke="currentColor" stroke-width="2"/><path d="M6 16l16 11 16-11" stroke="currentColor" stroke-width="2"/><path d="M32 36l4-4m0 0l-4-4m4 4H24" stroke="#0078d4" stroke-width="2" stroke-linecap="round"/></svg>
+        <p>Configure your email on the left, then click Generate to draft in your writing style.</p>
+      </div>
+      <div class="compose-loading" id="compose-loading">
+        <div class="dot-loader"><span></span><span></span><span></span></div>
+        <div class="loading-msg" id="compose-loading-msg">Analysing your email style...</div>
+      </div>
+      <div class="compose-result" id="compose-result">
+        <div class="insight-bar">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.5 10h-1V7h1v4zm0-5h-1V5h1v1z"/></svg>
+          <span id="compose-insight"></span>
+        </div>
+        <div class="c-field-row"><span class="c-field-label">To</span><input class="c-field-val" id="r-to" type="text"></div>
+        <div class="c-field-row"><span class="c-field-label">Subject</span><input class="c-field-val" id="r-subject" type="text"></div>
+        <div class="c-body-area"><textarea id="r-body"></textarea></div>
+        <div class="c-footer">
+          <button class="c-send-btn" onclick="sendEmailGraph()">Send</button>
+          <button class="c-adj-btn" onclick="adjustDraft('shorter')">Shorter</button>
+          <button class="c-adj-btn" onclick="adjustDraft('more formal')">More formal</button>
+          <button class="c-adj-btn" onclick="adjustDraft('friendlier')">Friendlier</button>
+          <button class="c-adj-btn" onclick="generateDraft()">✦ Regenerate</button>
+          <button class="c-adj-btn c-discard" onclick="discardDraft()">Discard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// OAUTH 2.0 PKCE + MICROSOFT GRAPH
+// ═══════════════════════════════════════════════════
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+const SCOPES = 'openid profile email User.Read Mail.ReadWrite Mail.Send';
+
+let CLIENT_ID = '';
+let accessToken = null;
+let tokenExpiry = 0;
+let ME = { name: '', email: '', initials: '' };
+let loadedEmails = [];
+let currentFolder = 'inbox';
+let currentFolderName = 'Inbox';
+let currentFilter = 'all';
+let currentEmail = null;
+let composerTone = 'professional';
+let selectedCtxIds = new Set();
+let aiSearchMode = true;
+
+// ── PKCE helpers ──
+function base64urlEncode(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function generatePKCE() {
+  const verifier = base64urlEncode(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const challenge = base64urlEncode(digest);
+  return { verifier, challenge };
+}
+
+// ── Auth entry ──
+function showAuthError(msg) {
+  document.getElementById('auth-error-msg').textContent = msg;
+  document.getElementById('auth-error').classList.add('show');
+}
+
+async function startOAuth() {
+  CLIENT_ID = '0cc7c0b7-9afb-4d7b-bd2d-749c6cea9de9';
+  sessionStorage.setItem('ms_client_id', CLIENT_ID);
+
+  const { verifier, challenge } = await generatePKCE();
+  const state = base64urlEncode(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('oauth_state', state);
+
+  const redirect = location.origin + location.pathname;
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: redirect,
+    scope: SCOPES,
+    state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    response_mode: 'query',
+    prompt: 'select_account'
+  });
+  window.location.href = `https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?${params}`;
+}
+
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+
+  if (error) {
+    showAuthError('Microsoft sign-in failed: ' + (params.get('error_description') || error));
+    history.replaceState({}, '', location.pathname);
+    return false;
+  }
+  if (!code) return false;
+
+  const savedState = sessionStorage.getItem('oauth_state');
+  if (state !== savedState) {
+    showAuthError('Security check failed. Please try signing in again.');
+    history.replaceState({}, '', location.pathname);
+    return false;
+  }
+
+  history.replaceState({}, '', location.pathname);
+  CLIENT_ID = sessionStorage.getItem('ms_client_id') || '';
+  const verifier = sessionStorage.getItem('pkce_verifier') || '';
+
+  showScreen('loading-screen');
+  setLoaderMsg('Exchanging authorisation code...', 20);
+
+  const redirect = location.origin + location.pathname;
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirect,
+    code_verifier: verifier,
+    scope: SCOPES
+  });
+
+  try {
+    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error_description || data.error);
+
+    accessToken = data.access_token;
+    tokenExpiry = Date.now() + (data.expires_in * 1000);
+    if (data.refresh_token) sessionStorage.setItem('ms_refresh_token', data.refresh_token);
+
+    setLoaderMsg('Loading your profile...', 50);
+    await loadProfile();
+    setLoaderMsg('Fetching your inbox...', 75);
+    await loadEmails('inbox');
+    setLoaderMsg('Almost ready...', 95);
+    setTimeout(() => launchApp(), 400);
+    return true;
+  } catch (e) {
+    showScreen('auth-screen');
+    showAuthError('Failed to sign in: ' + e.message);
+    return false;
+  }
+}
+
+async function graphFetch(url, opts = {}) {
+  if (!accessToken || Date.now() > tokenExpiry - 60000) {
+    await refreshToken();
+  }
+  const res = await fetch(GRAPH + url, {
+    ...opts,
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Graph error ${res.status}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function refreshToken() {
+  const rt = sessionStorage.getItem('ms_refresh_token');
+  if (!rt) { signOut(); return; }
+  const body = new URLSearchParams({ client_id: CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: SCOPES });
+  const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+  const data = await res.json();
+  if (data.access_token) {
+    accessToken = data.access_token;
+    tokenExpiry = Date.now() + data.expires_in * 1000;
+    if (data.refresh_token) sessionStorage.setItem('ms_refresh_token', data.refresh_token);
+  } else { signOut(); }
+}
+
+async function loadProfile() {
+  const me = await graphFetch('/me?$select=displayName,mail,userPrincipalName');
+  const email = me.mail || me.userPrincipalName || '';
+  const name = me.displayName || email.split('@')[0];
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  ME = { name, email, initials };
+}
+
+// ── Email loading ──
+const FOLDER_MAP = {
+  inbox: '/me/mailFolders/inbox/messages',
+  sentItems: '/me/mailFolders/sentItems/messages',
+  drafts: '/me/mailFolders/drafts/messages',
+  archive: '/me/mailFolders/archive/messages',
+  deleteditems: '/me/mailFolders/deleteditems/messages',
+};
+
+async function loadEmails(folder, filter) {
+  const path = FOLDER_MAP[folder] || `/me/mailFolders/${folder}/messages`;
+  let query = '?$top=50&$select=id,subject,from,toRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,body,importance&$orderby=receivedDateTime desc';
+  if (filter === 'unread') query += '&$filter=isRead eq false';
+  if (filter === 'attach') query += '&$filter=hasAttachments eq true';
+  const data = await graphFetch(path + query);
+  return (data?.value || []).map(m => normaliseMessage(m, folder));
+}
+
+function normaliseMessage(m, folder) {
+  const from = m.from?.emailAddress;
+  const sent = folder === 'sentItems' || folder === 'drafts';
+  const to = (m.toRecipients || []).map(r => r.emailAddress?.address).join(', ');
+  const date = new Date(m.receivedDateTime || m.sentDateTime || Date.now());
+  const now = new Date();
+  const diff = now - date;
+  let timeStr;
+  if (diff < 86400000 && now.getDate() === date.getDate()) timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  else if (diff < 172800000) timeStr = 'Yesterday';
+  else if (diff < 604800000) timeStr = date.toLocaleDateString([], { weekday: 'short' });
+  else timeStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+  const subj = m.subject || '(no subject)';
+  const body = m.body?.content || m.bodyPreview || '';
+  const plainBody = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const tags = [];
+  const sl = subj.toLowerCase() + ' ' + plainBody.substring(0, 200).toLowerCase();
+  if (/(urgent|asap|action required|immediate|critical)/.test(sl)) tags.push('urgent');
+  if (/(meeting|calendar|invite|schedule|call|zoom|teams)/.test(sl)) tags.push('meeting');
+  if (/(budget|invoice|finance|payment|cost|price|£|\$)/.test(sl)) tags.push('budget');
+  if (/(github|deploy|pull request|bug|code|server|tech|dev)/.test(sl)) tags.push('tech');
+  if (/(hr|policy|leave|holiday|payroll|benefits)/.test(sl)) tags.push('hr');
+
+  return {
+    id: m.id, folder, graphId: m.id,
+    sender: sent ? 'You → ' + to : (from?.name || from?.address || 'Unknown'),
+    from: from?.address || '',
+    to, subject: subj,
+    body: plainBody,
+    preview: m.bodyPreview || plainBody.slice(0, 100),
+    time: timeStr,
+    unread: !m.isRead,
+    starred: m.importance === 'high',
+    attachment: m.hasAttachments || false,
+    tags, rawDate: date
+  };
+}
+
+function launchApp() {
+  document.getElementById('user-avatar').textContent = ME.initials;
+  document.getElementById('menu-name').textContent = ME.name;
+  document.getElementById('menu-email').textContent = ME.email;
+  showScreen('app-screen');
+  renderEmailList(loadedEmails);
+  buildCtxList(loadedEmails);
+}
+
+function setLoaderMsg(msg, pct) {
+  const el = document.getElementById('loader-msg');
+  const fill = document.getElementById('loader-fill');
+  if (el) el.textContent = msg;
+  if (fill) fill.style.width = pct + '%';
+}
+
+// ── Folder / filter ──
+async function setFolder(folder, name, el) {
+  currentFolder = folder;
+  currentFolderName = name;
+  currentEmail = null;
+  currentFilter = 'all';
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('flt-all').classList.add('on');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('folder-title').textContent = name;
+  closeDetail();
+  closeSearch();
+  showListLoading();
+  try {
+    loadedEmails = await loadEmails(folder, 'all');
+    renderEmailList(loadedEmails);
+    buildCtxList(loadedEmails);
+  } catch(e) { showListError(e.message); }
+}
+
+async function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  if (el) el.classList.add('on');
+  showListLoading();
+  try {
+    loadedEmails = await loadEmails(currentFolder, f);
+    renderEmailList(loadedEmails);
+  } catch(e) { showListError(e.message); }
+}
+
+async function refreshEmails() {
+  showListLoading();
+  try {
+    loadedEmails = await loadEmails(currentFolder, currentFilter);
+    renderEmailList(loadedEmails);
+    buildCtxList(loadedEmails);
+  } catch(e) { showListError(e.message); }
+}
+
+function showListLoading() {
+  document.getElementById('email-list').innerHTML = '<div class="list-loading"><div class="dot-loader"><span></span><span></span><span></span></div><div class="loading-msg">Loading...</div></div>';
+}
+function showListError(msg) {
+  document.getElementById('email-list').innerHTML = `<div class="empty-list" style="color:var(--urgent)">Error: ${msg}</div>`;
+}
+
+// ── Render list ──
+function renderEmailList(emails, query) {
+  const list = emails || loadedEmails;
+  const el = document.getElementById('email-list');
+  if (!list.length) { el.innerHTML = '<div class="empty-list">No emails here</div>'; updateUnreadBadge(list); return; }
+  el.innerHTML = '';
+  list.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'email-row' + (e.unread ? ' unread' : '') + (currentEmail && currentEmail.id === e.id ? ' selected' : '');
+    row.onclick = () => openEmail(e, row);
+    const subj = query ? hl(e.subject, query) : e.subject;
+    const prev = query ? hl(e.preview, query) : e.preview;
+    row.innerHTML = `
+      <div class="er-row1">
+        <span class="er-sender">${esc(e.sender)}</span>
+        ${e.starred ? '<svg width="12" height="12" viewBox="0 0 16 16" fill="#ffb900"><path d="M8 1l2 4.5H15l-3.5 3 1.5 5L8 11.5 3 13.5l1.5-5L1 5.5h5z"/></svg>' : ''}
+        ${e.attachment ? '<svg class="er-attach" width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M14 7l-6 6a4 4 0 0 1-5.7-5.7l6-6a2.5 2.5 0 0 1 3.5 3.5L6 10a1 1 0 0 1-1.4-1.4L10 3l-1-1-5.4 5.4a3 3 0 0 0 4.2 4.2L14 6l-1-1z"/></svg>' : ''}
+        <span class="er-time">${e.time}</span>
+      </div>
+      <div class="er-subject">${subj}</div>
+      <div class="er-preview">${prev}</div>
+      <div class="er-tags">${e.tags.map(t => `<span class="tag tag-${t}">${t}</span>`).join('')}</div>`;
+    el.appendChild(row);
+  });
+  updateUnreadBadge(list);
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function hl(text, q) {
+  if (!text || !q) return esc(text || '');
+  const words = q.split(/\s+/).filter(w => w.length > 2);
+  let out = esc(text);
+  words.forEach(w => { out = out.replace(new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>'); });
+  return out;
+}
+
+function updateUnreadBadge(list) {
+  const all = list || loadedEmails;
+  const count = all.filter(e => e.unread).length;
+  const badge = document.getElementById('unread-badge');
+  if (badge) badge.textContent = count || 0;
+}
+
+// ── Email detail ──
+async function openEmail(e, row) {
+  document.querySelectorAll('.email-row').forEach(r => r.classList.remove('selected'));
+  if (row) row.classList.add('selected');
+  currentEmail = e;
+
+  if (e.unread) {
+    e.unread = false;
+    if (row) row.classList.remove('unread');
+    updateUnreadBadge();
+    graphFetch(`/me/messages/${e.graphId}`, { method: 'PATCH', body: JSON.stringify({ isRead: true }) }).catch(() => {});
+  }
+
+  document.getElementById('detail-empty').style.display = 'none';
+  document.getElementById('detail-content').style.display = 'block';
+  document.getElementById('ai-quick-bar').style.display = 'block';
+  document.getElementById('d-subject').textContent = e.subject;
+  document.getElementById('d-meta').innerHTML = `
+    <strong>From:</strong> ${esc(e.sender)} ${e.from ? '&lt;' + esc(e.from) + '&gt;' : ''}<br>
+    <strong>To:</strong> ${esc(e.to || ME.email)}<br>
+    <strong>Date:</strong> ${e.time}
+    ${e.tags.length ? '<br><strong>Tags:</strong> ' + e.tags.map(t => `<span class="tag tag-${t}" style="margin-left:4px">${t}</span>`).join('') : ''}
+  `;
+  document.getElementById('d-actions').innerHTML = `
+    <button class="action-btn primary" onclick="openComposerForReply()">Reply</button>
+    <button class="action-btn ai" onclick="openComposerForReply()">✦ AI Draft Reply</button>
+    <button class="action-btn ai" onclick="aiChip('Summarize this email in 3 bullet points')">✦ Summarize</button>
+    <button class="action-btn" onclick="moveToFolder('${e.graphId}','deleteditems')" style="color:var(--urgent)">Delete</button>
+  `;
+
+  // Load full body if needed
+  let bodyText = e.body;
+  if (bodyText.length < 50) {
+    try {
+      const full = await graphFetch(`/me/messages/${e.graphId}?$select=body`);
+      bodyText = full?.body?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || bodyText;
+      e.body = bodyText;
+    } catch {}
+  }
+  document.getElementById('d-body').textContent = bodyText;
+}
+
+function closeDetail() {
+  currentEmail = null;
+  document.getElementById('detail-empty').style.display = 'flex';
+  document.getElementById('detail-content').style.display = 'none';
+  document.getElementById('ai-quick-bar').style.display = 'none';
+}
+
+async function moveToFolder(msgId, dest) {
+  try {
+    await graphFetch(`/me/messages/${msgId}/move`, { method: 'POST', body: JSON.stringify({ destinationId: dest }) });
+    loadedEmails = loadedEmails.filter(e => e.graphId !== msgId);
+    renderEmailList(loadedEmails);
+    closeDetail();
+  } catch(e) { alert('Could not move email: ' + e.message); }
+}
+
+// ── AI chip ──
+function aiChip(prompt) {
+  if (!currentEmail) return;
+  const text = `${prompt}\n\nFrom: ${currentEmail.sender}\nSubject: ${currentEmail.subject}\n\n${currentEmail.body}`;
+  sendToClaude(text);
+}
+
+function sendToClaude(prompt) {
+  // In production this would call the Claude API directly.
+  // Here we open the prompt in Claude.ai for the user.
+  const url = 'https://claude.ai/new?q=' + encodeURIComponent(prompt);
+  window.open(url, '_blank');
+}
+
+// ── User menu ──
+function toggleUserMenu() {
+  document.getElementById('user-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const av = document.getElementById('user-avatar');
+  if (av && !av.contains(e.target)) document.getElementById('user-menu').classList.remove('open');
+});
+
+function signOut() {
+  accessToken = null;
+  sessionStorage.clear();
+  showScreen('auth-screen');
+  document.getElementById('client-id-input').value = '';
+}
+
+// ── Search ──
+function toggleSearchMode() {
+  aiSearchMode = !aiSearchMode;
+  const b = document.getElementById('mode-badge');
+  b.textContent = aiSearchMode ? '✦ AI' : 'Keyword';
+  b.className = 'search-mode-btn ' + (aiSearchMode ? 'ai' : 'kw');
+}
+function handleSearchKey(e) { if (e.key === 'Enter') runSearch(); }
+function onSearchInput() { document.getElementById('search-suggestions').classList.toggle('open', !document.getElementById('search-input').value); }
+function onSearchFocus() { if (!document.getElementById('search-input').value) document.getElementById('search-suggestions').classList.add('open'); }
+function onSearchBlur() { setTimeout(() => document.getElementById('search-suggestions').classList.remove('open'), 150); }
+function pickSuggestion(text) { document.getElementById('search-input').value = text; runSearch(); }
+function quickSearch(query) { document.getElementById('search-input').value = query; runSearch(); }
+
+async function runSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  document.getElementById('email-view').style.display = 'none';
+  document.getElementById('search-results-view').classList.add('open');
+  document.getElementById('sr-title').textContent = `Searching: "${q}"`;
+  document.getElementById('sr-list').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 0;gap:12px;"><div class="dot-loader"><span></span><span></span><span></span></div><div class="loading-msg" id="sr-load-msg">Searching your mailbox...</div></div>`;
+
+  let graphResults = [];
+  try {
+    // Try Graph search first
+    const res = await graphFetch(`/me/messages?$search="${q}"&$top=20&$select=id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview,importance`);
+    graphResults = (res?.value || []).map(m => normaliseMessage(m, currentFolder));
+  } catch {}
+
+  if (!aiSearchMode || !graphResults.length) {
+    const kw = q.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const matched = loadedEmails.filter(e => kw.some(k => e.subject.toLowerCase().includes(k) || e.body.toLowerCase().includes(k) || e.sender.toLowerCase().includes(k) || e.tags.some(t => t.includes(k))));
+    renderSearchResults({ interpretation: 'Keyword search for: ' + q, filters: kw, matchedIds: matched.map(e => e.id), results: matched.map(e => ({ id: e.id, relevance: 'Matched your search terms', snippet: e.preview })), summary: matched.length + ' email(s) found.', suggestedAction: '' }, q, matched);
+    return;
+  }
+
+  // AI analysis of results
+  const emailsData = JSON.stringify(graphResults.slice(0, 15).map(e => ({ id: e.id, sender: e.sender, subject: e.subject, preview: e.preview, time: e.time, tags: e.tags, unread: e.unread })));
+  const prompt = `You are an AI email search assistant. The user searched: "${q}"
+
+These are the emails found:
+${emailsData}
+
+Analyse which emails best match the intent of the user's query. Respond ONLY with valid JSON (no markdown):
+{"interpretation":"one sentence how you understood the query","filters":["filter1","filter2"],"matchedIds":["id1","id2"],"results":[{"id":"id1","relevance":"why it matches","snippet":"key phrase max 12 words"}],"summary":"2-3 sentence summary","suggestedAction":"one next step"}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 800, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await res.json();
+    const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    renderSearchResults(parsed, q, graphResults);
+  } catch {
+    renderSearchResults({ interpretation: 'Results from your mailbox for: ' + q, filters: [], matchedIds: graphResults.map(e => e.id), results: graphResults.map(e => ({ id: e.id, relevance: 'Found in your inbox', snippet: e.preview })), summary: graphResults.length + ' email(s) found.', suggestedAction: '' }, q, graphResults);
+  }
+}
+
+function renderSearchResults(data, q, emails) {
+  const allEmails = emails || loadedEmails;
+  const resultMap = {};
+  (data.results || []).forEach(r => { resultMap[r.id] = r; });
+  const matched = allEmails.filter(e => data.matchedIds.includes(e.id));
+
+  let html = `<div class="interp-card">
+    <div class="interp-top"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="color:var(--ms-blue)"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg><span>AI understood your query</span></div>
+    <div class="interp-desc">${esc(data.interpretation)}</div>
+    <div class="interp-filters">${(data.filters || []).map(f => `<span class="interp-filter">${esc(f)}</span>`).join('')}</div>
+  </div>`;
+
+  if (!matched.length) {
+    html += '<div class="no-results">No emails found. Try rephrasing your search.</div>';
+  } else {
+    html += `<div style="font-size:11px;color:var(--text3);padding:4px 2px">${matched.length} email${matched.length !== 1 ? 's' : ''} found</div>`;
+    matched.forEach(e => {
+      const r = resultMap[e.id] || {};
+      html += `<div class="result-card" id="rc-${e.id}" onclick="openSearchResult('${e.id}', searchEmails)">
+        <div class="rc-top"><span class="rc-sender">${esc(e.sender)}</span>${e.tags.map(t => `<span class="tag tag-${t}">${t}</span>`).join('')}<span class="rc-time">${e.time}</span></div>
+        <div class="rc-subject">${hl(e.subject, q)}</div>
+        <div class="rc-snippet">${hl(r.snippet || e.preview, q)}</div>
+        <div class="rc-why">✦ ${esc(r.relevance || '')}</div>
+      </div>`;
+    });
+  }
+  if (data.summary) {
+    html += `<div class="summary-card"><h4>✦ AI Summary</h4><p>${esc(data.summary)}</p>${data.suggestedAction ? `<div class="summary-actions"><button class="action-btn ai" onclick="sendToClaude('${data.suggestedAction.replace(/'/g,"\\'")}')">↗ ${esc(data.suggestedAction)}</button></div>` : ''}</div>`;
+  }
+  document.getElementById('sr-list').innerHTML = html;
+  window.searchEmails = matched;
+}
+
+function openSearchResult(id, emails) {
+  const e = (emails || []).find(x => x.id === id);
+  if (!e) return;
+  document.querySelectorAll('.result-card').forEach(c => c.classList.remove('sel'));
+  const card = document.getElementById('rc-' + id);
+  if (card) card.classList.add('sel');
+  document.getElementById('sr-detail').innerHTML = `
+    <div class="detail-subject">${esc(e.subject)}</div>
+    <div class="detail-meta"><strong>From:</strong> ${esc(e.sender)}<br><strong>Date:</strong> ${e.time}</div>
+    <div class="detail-actions">
+      <button class="action-btn primary" onclick="openComposerForReply()">Reply</button>
+      <button class="action-btn ai" onclick="currentEmail=window.searchEmails.find(x=>x.id==='${id}');aiChip('Draft a professional reply')">✦ AI Reply</button>
+      <button class="action-btn ai" onclick="currentEmail=window.searchEmails.find(x=>x.id==='${id}');aiChip('Summarize this email in 3 bullet points')">✦ Summarize</button>
+    </div>
+    <div class="detail-body">${esc(e.body)}</div>`;
+}
+
+function closeSearch() {
+  document.getElementById('search-results-view').classList.remove('open');
+  document.getElementById('email-view').style.display = 'flex';
+  document.getElementById('search-input').value = '';
+}
+
+// ── AI COMPOSER ──
+function openComposer() { document.getElementById('composer-panel').classList.add('open'); buildCtxList(loadedEmails); }
+function openComposerForReply() {
+  openComposer();
+  if (currentEmail) {
+    document.getElementById('c-type').value = 'reply';
+    document.getElementById('c-to').value = `${currentEmail.sender} <${currentEmail.from}>`;
+    selectedCtxIds.clear(); selectedCtxIds.add(currentEmail.id);
+    buildCtxList(loadedEmails);
+  }
+}
+function closeComposer() { document.getElementById('composer-panel').classList.remove('open'); }
+
+function buildCtxList(emails) {
+  const list = (emails || loadedEmails).slice(0, 12);
+  const el = document.getElementById('ctx-list');
+  if (!list.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3)">No emails loaded yet</div>'; return; }
+  el.innerHTML = '';
+  list.forEach(e => {
+    const on = selectedCtxIds.has(e.id);
+    const item = document.createElement('div');
+    item.className = 'ctx-item' + (on ? ' on' : '');
+    item.onclick = () => { if (selectedCtxIds.has(e.id)) selectedCtxIds.delete(e.id); else selectedCtxIds.add(e.id); buildCtxList(emails); };
+    item.innerHTML = `<div class="ctx-checkbox${on ? ' checked' : ''}">${on ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><path d="M1 5l3 3 5-5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>' : ''}</div>
+      <div class="ctx-label"><strong>${esc(e.sender.slice(0, 26))}</strong>${esc(e.subject.slice(0, 28))}${e.subject.length > 28 ? '…' : ''}</div>`;
+    el.appendChild(item);
+  });
+}
+
+function setTone(el, tone) {
+  composerTone = tone;
+  document.querySelectorAll('.tone-opt').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+async function generateDraft() {
+  const type = document.getElementById('c-type').value;
+  const to = document.getElementById('c-to').value.trim();
+  const intent = document.getElementById('c-intent').value.trim();
+  const ctxEmails = (loadedEmails).filter(e => selectedCtxIds.has(e.id));
+  const ctxText = ctxEmails.map(e => `--- (${e.time}) ---\nFrom: ${e.sender}\nSubject: ${e.subject}\n\n${e.body.slice(0, 400)}`).join('\n\n');
+  const sentHistory = loadedEmails.filter(e => e.folder === 'sentItems').map(e => e.body.slice(0, 300)).join('\n\n---\n\n');
+
+  showComposePart('loading');
+  ['Analysing your email style...','Reading context emails...','Matching your tone...','Drafting your email...'].forEach((m, i) => setTimeout(() => { const el = document.getElementById('compose-loading-msg'); if(el) el.textContent = m; }, i * 700));
+
+  const prompt = `You are an AI email assistant for ${ME.name} (${ME.email}).
+
+WRITING STYLE — study these sent emails to match the user's voice:
+${sentHistory || 'No sent emails available. Use a professional tone.'}
+
+CONTEXT EMAILS:
+${ctxText || 'No context selected.'}
+
+TASK: Write a ${type} email with a ${composerTone} tone.
+${to ? 'Recipient: ' + to : ''}
+${intent ? 'Key points: ' + intent : ''}
+
+Respond ONLY with valid JSON (no markdown):
+{"to":"recipient","subject":"subject line","body":"full email body","insight":"one sentence about style patterns used"}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }) });
+    const data = await res.json();
+    const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    document.getElementById('r-to').value = parsed.to || to;
+    document.getElementById('r-subject').value = parsed.subject || '';
+    document.getElementById('r-body').value = parsed.body || '';
+    document.getElementById('compose-insight').textContent = parsed.insight || 'Draft generated from your email history.';
+    showComposePart('result');
+  } catch {
+    document.getElementById('r-to').value = to;
+    document.getElementById('r-subject').value = 'Follow-up';
+    document.getElementById('r-body').value = `Hi,\n\n${intent || 'I wanted to follow up on our recent conversation.'}\n\nPlease let me know if you have any questions.\n\nBest,\n${ME.name}`;
+    document.getElementById('compose-insight').textContent = 'Draft generated.';
+    showComposePart('result');
+  }
+}
+
+async function adjustDraft(adj) {
+  const body = document.getElementById('r-body').value;
+  const subject = document.getElementById('r-subject').value;
+  showComposePart('loading');
+  document.getElementById('compose-loading-msg').textContent = 'Adjusting: ' + adj + '...';
+  const prompt = `Rewrite this email to be ${adj}. Keep the same meaning. Return ONLY JSON (no markdown): {"subject":"subject","body":"rewritten body"}\n\nSubject: ${subject}\n\n${body}`;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }) });
+    const data = await res.json();
+    const parsed = JSON.parse(data.content.filter(b=>b.type==='text').map(b=>b.text).join('').replace(/```json|```/g,'').trim());
+    document.getElementById('r-subject').value = parsed.subject || subject;
+    document.getElementById('r-body').value = parsed.body || body;
+    document.getElementById('compose-insight').textContent = 'Adjusted to be ' + adj + '.';
+  } catch {}
+  showComposePart('result');
+}
+
+function showComposePart(part) {
+  document.getElementById('compose-idle').style.display = part === 'idle' ? 'flex' : 'none';
+  document.getElementById('compose-loading').style.display = part === 'loading' ? 'flex' : 'none';
+  document.getElementById('compose-result').style.display = part === 'result' ? 'flex' : 'none';
+}
+function discardDraft() { showComposePart('idle'); }
+
+async function sendEmailGraph() {
+  const to = document.getElementById('r-to').value.trim();
+  const subject = document.getElementById('r-subject').value.trim();
+  const body = document.getElementById('r-body').value.trim();
+  if (!to || !subject) { alert('Please fill in To and Subject.'); return; }
+  const toAddr = to.match(/<(.+)>/) ? to.match(/<(.+)>/)[1] : to;
+  const msg = {
+    subject,
+    body: { contentType: 'Text', content: body },
+    toRecipients: [{ emailAddress: { address: toAddr } }]
+  };
+  try {
+    await graphFetch('/me/sendMail', { method: 'POST', body: JSON.stringify({ message: msg }) });
+    alert('Email sent successfully!');
+    discardDraft(); closeComposer();
+  } catch(e) { alert('Failed to send: ' + e.message); }
+}
+
+// ── INIT ──
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+(async function init() {
+  // Check for OAuth callback
+  if (location.search.includes('code=')) {
+    showScreen('loading-screen');
+    setLoaderMsg('Processing sign-in...', 10);
+    const handled = await handleOAuthCallback();
+    if (!handled) showScreen('auth-screen');
+    return;
+  }
+  showScreen('auth-screen');
+})();
+</script>
+</body>
+</html>
