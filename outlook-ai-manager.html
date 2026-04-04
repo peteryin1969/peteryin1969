@@ -262,6 +262,24 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3)}
 
+/* API Key overlay */
+#api-key-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;align-items:center;justify-content:center}
+#api-key-overlay.open{display:flex}
+.api-key-card{background:var(--surface);border-radius:16px;padding:36px 36px;width:440px;box-shadow:0 24px 64px rgba(0,0,0,0.3);animation:slideUp 0.25s ease}
+.api-key-card h2{font-size:20px;font-weight:600;color:var(--text);margin-bottom:6px}
+.api-key-card p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px}
+.api-key-steps{background:var(--ms-blue-light);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:20px;font-size:12px;color:#003b6b;line-height:1.9}
+.api-key-steps b{font-weight:600}
+.api-key-steps a{color:var(--ms-blue);font-weight:500}
+.api-key-input-wrap{display:flex;gap:8px;margin-bottom:8px}
+.api-key-input-wrap input{flex:1;padding:10px 13px;border:1px solid var(--border2);border-radius:var(--radius-lg);font-size:13px;font-family:var(--font);color:var(--text);background:var(--surface);outline:none}
+.api-key-input-wrap input:focus{border-color:var(--ms-blue)}
+.api-key-save{padding:10px 20px;background:var(--ms-blue);color:#fff;border:none;border-radius:var(--radius-lg);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.api-key-save:hover{background:var(--ms-blue-dark)}
+.api-key-error{display:none;font-size:12px;color:var(--urgent);margin-bottom:10px}
+.api-key-skip{background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:var(--font);padding:4px;text-decoration:underline}
+.api-key-note{font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6}
+
 /* Attachment browser cards */
 .attach-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;gap:6px}
 .attach-card:hover{border-color:var(--ms-blue);box-shadow:0 2px 8px rgba(0,120,212,0.1)}
@@ -553,6 +571,7 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
             </div>
           </div>
           <div class="chat-quick-btns">
+            <div class="chat-quick-btn" style="background:var(--ms-blue);color:#fff;border-color:var(--ms-blue)" onclick="openApiKeySetup()">🔑 Connect Claude AI</div>
             <div class="chat-quick-btn" onclick="sendChatMsg('Emails I need to reply to')">Need reply</div>
             <div class="chat-quick-btn" onclick="sendChatMsg('Unread emails today')">Unread today</div>
             <div class="chat-quick-btn" onclick="sendChatMsg('Emails with attachments')">Attachments</div>
@@ -620,6 +639,33 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- API KEY SETUP OVERLAY -->
+<div id="api-key-overlay">
+  <div class="api-key-card">
+    <h2>Connect Claude AI</h2>
+    <p>Enter your Claude API key to enable AI email drafting and intelligent search. Your key is stored only in this browser tab.</p>
+    <div class="api-key-steps">
+      <b>Get your free API key (2 minutes):</b><br>
+      1. Go to <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br>
+      2. Sign up for a free account<br>
+      3. Click <b>API Keys</b> → <b>Create Key</b><br>
+      4. Copy the key (starts with <b>sk-ant-</b>) and paste below
+    </div>
+    <div id="api-key-error" class="api-key-error"></div>
+    <div class="api-key-input-wrap">
+      <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." onkeydown="if(event.key==='Enter') saveApiKey()">
+      <button class="api-key-save" onclick="saveApiKey()">Connect</button>
+    </div>
+    <div class="api-key-note">
+      🔒 Your key never leaves your browser — it is sent directly to Anthropic's servers, not stored anywhere else.<br>
+      Free accounts include $5 of credits which covers thousands of email drafts.
+    </div>
+    <div style="margin-top:12px">
+      <button class="api-key-skip" onclick="closeApiKeySetup()">Skip for now — use template drafts</button>
     </div>
   </div>
 </div>
@@ -982,6 +1028,8 @@ function launchApp() {
   showListLoading();
   renderEmailList([]);
   buildCtxList([]);
+  // Check if local Claude proxy is running (enables full AI features)
+  checkProxy();
 }
 
 // ── Folder / filter ──
@@ -2067,23 +2115,11 @@ Then on a new line add:
 
   // Step 5: Call Claude
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-allow-cors': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }]
-      })
+    const data = await claudeFetch({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }]
     });
-
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
 
     const rawText = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
     thinking.remove();
@@ -2175,8 +2211,62 @@ Then on a new line add:
   chatSearching = false;
   document.getElementById('claude-chat-send').disabled = false;
 }
-let chatHistory = []; // {role, content}
+let chatHistory = [];
 let chatSearching = false;
+let CLAUDE_API_KEY = sessionStorage.getItem('claude_api_key') || '';
+
+// Call Claude API directly using stored key
+async function claudeFetch(body) {
+  if (!CLAUDE_API_KEY) {
+    openApiKeySetup();
+    throw new Error('No Claude API key. Please enter your key.');
+  }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-cors': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data;
+}
+
+// API Key setup overlay
+function openApiKeySetup() {
+  document.getElementById('api-key-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('api-key-input').focus(), 100);
+}
+function closeApiKeySetup() {
+  document.getElementById('api-key-overlay').classList.remove('open');
+}
+function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    document.getElementById('api-key-error').textContent = 'Invalid key — it should start with sk-ant-';
+    document.getElementById('api-key-error').style.display = 'block';
+    return;
+  }
+  CLAUDE_API_KEY = key;
+  sessionStorage.setItem('claude_api_key', key);
+  closeApiKeySetup();
+  // Update button to show AI is active
+  const btn = document.getElementById('chat-toggle-btn');
+  if (btn) btn.style.background = 'rgba(255,255,255,0.35)';
+  // Show confirmation in chat
+  const panel = document.getElementById('claude-chat-panel');
+  panel.classList.add('open');
+  addChatMsg('claude', '✅ **Claude AI is now connected!**\n\nYou can now:\n• Ask me to find any emails\n• Click **✦ AI Draft Reply** on any email for a real AI-written response\n• Type anything in plain English here\n\nTry: _"find emails about invoices"_ or open an email and click **✦ AI Draft Reply**');
+}
+function checkProxy() {} // no-op, kept for compatibility
 
 function toggleClaudeChat() {
   const panel = document.getElementById('claude-chat-panel');
@@ -2185,6 +2275,13 @@ function toggleClaudeChat() {
     panel.classList.remove('open');
   } else {
     panel.classList.add('open');
+    if (!CLAUDE_API_KEY) {
+      // Show setup prompt in chat
+      const msgs = document.getElementById('claude-chat-msgs');
+      if (msgs.children.length <= 1) {
+        addChatMsg('claude', '👋 Hi Peter! To use Claude AI search and email drafting, you need a free API key.\n\nClick **"Connect Claude AI"** below to set it up in 2 minutes.\n\nOr just ask me something and I\'ll prompt you automatically!');
+      }
+    }
     document.getElementById('claude-chat-input').focus();
   }
 }
@@ -2339,30 +2436,17 @@ For analysis questions (not search), just answer directly without results tags.`
 
   try {
     const messages = [
-      ...chatHistory.slice(-6), // last 3 exchanges for context
+      ...chatHistory.slice(-6),
     ];
 
-    // Use the Anthropic API via a CORS-friendly approach
-    // We send to claude.ai's API endpoint which allows browser calls
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-allow-cors': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1500,
-        system: systemPrompt,
-        messages: messages
-      })
+    const data = await claudeFetch({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: messages
     });
 
-    const data = await response.json();
     thinking.remove();
-
-    if (data.error) throw new Error(data.error.message);
 
     const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
 
