@@ -282,6 +282,40 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
 .attach-btn.primary{background:var(--ms-blue);color:#fff;border-color:var(--ms-blue)}
 .attach-btn.primary:hover{background:var(--ms-blue-dark)}
 
+/* Claude Chat Search Panel */
+.claude-chat-panel{display:none;flex-direction:column;width:360px;border-left:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow:hidden}
+.claude-chat-panel.open{display:flex}
+.claude-chat-header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--ms-blue)}
+.claude-chat-header h3{font-size:14px;font-weight:600;color:#fff;flex:1}
+.claude-chat-close{background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.8);font-size:18px;line-height:1;padding:0 2px}
+.claude-chat-close:hover{color:#fff}
+.claude-chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.chat-msg{display:flex;flex-direction:column;gap:4px;max-width:92%}
+.chat-msg.user{align-self:flex-end;align-items:flex-end}
+.chat-msg.claude{align-self:flex-start;align-items:flex-start}
+.chat-bubble{padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+.chat-msg.user .chat-bubble{background:var(--ms-blue);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.claude .chat-bubble{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-msg.claude .chat-bubble.thinking{color:var(--text3);font-style:italic}
+.chat-time{font-size:10px;color:var(--text3);padding:0 4px}
+.chat-results{display:flex;flex-direction:column;gap:5px;margin-top:6px;width:100%}
+.chat-result-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:9px 11px;cursor:pointer;transition:all 0.12s}
+.chat-result-card:hover{border-color:var(--ms-blue);background:var(--ms-blue-light)}
+.chat-result-sender{font-size:12px;font-weight:600;color:var(--text)}
+.chat-result-subject{font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-result-why{font-size:10px;color:var(--ms-blue);margin-top:3px;font-style:italic}
+.chat-quick-btns{display:flex;gap:5px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface2)}
+.chat-quick-btn{padding:4px 10px;border:1px solid var(--border2);border-radius:20px;font-size:11px;color:var(--text2);cursor:pointer;background:var(--surface);font-family:var(--font);white-space:nowrap}
+.chat-quick-btn:hover{border-color:var(--ms-blue);color:var(--ms-blue)}
+.claude-chat-input-row{display:flex;align-items:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.claude-chat-input{flex:1;padding:8px 12px;border:1px solid var(--border2);border-radius:18px;font-size:13px;font-family:var(--font);color:var(--text);background:var(--surface);outline:none;resize:none;max-height:80px;line-height:1.4}
+.claude-chat-input:focus{border-color:var(--ms-blue)}
+.claude-chat-send{width:34px;height:34px;border-radius:50%;background:var(--ms-blue);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.15s}
+.claude-chat-send:hover{background:var(--ms-blue-dark)}
+.claude-chat-send:disabled{background:var(--text3);cursor:not-allowed}
+.chat-toggle-btn{display:flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font);transition:background 0.15s;flex-shrink:0}
+.chat-toggle-btn:hover{background:rgba(255,255,255,0.25)}
+
 /* OAuth callback overlay */
 #oauth-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center}
 #oauth-overlay.show{display:flex}
@@ -381,6 +415,10 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
       </div>
     </div>
     <div class="topbar-right">
+      <button class="chat-toggle-btn" onclick="toggleClaudeChat()" id="chat-toggle-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.5 10h-1V7h1v4zm0-5h-1V5h1v1z"/></svg>
+        ✦ Ask Claude
+      </button>
       <button class="topbar-icon-btn" onclick="openComposer()" title="AI Compose">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 1L15 2.5l-1 1L12.5 2l1-1zM2 11.5V13h1.5l8-8-1.5-1.5-8 8z"/><path d="M1 14h14v1H1z"/></svg>
       </button>
@@ -488,12 +526,44 @@ mark{background:#fff59d;border-radius:2px;padding:0 1px;color:var(--text)}
           <div class="ai-quick-bar" id="ai-quick-bar">
             <div class="ai-quick-label">✦ Ask Claude about this email</div>
             <div class="ai-chips">
-              <div class="ai-chip" onclick="aiChip('Summarize this email in 3 bullet points')">Summarize</div>
-              <div class="ai-chip" onclick="aiChip('Draft a professional reply')">Draft reply</div>
-              <div class="ai-chip" onclick="aiChip('What action do I need to take?')">Action needed?</div>
-              <div class="ai-chip" onclick="aiChip('Is this email urgent?')">Is it urgent?</div>
+              <div class="ai-chip" onclick="askClaudeChat('Summarize this email in 3 bullet points')">Summarize</div>
+              <div class="ai-chip" onclick="askClaudeChat('What action do I need to take from this email?')">Action needed?</div>
+              <div class="ai-chip" onclick="askClaudeChat('Is this email urgent?')">Is it urgent?</div>
               <div class="ai-chip" onclick="openComposerForReply()">✦ AI Compose Reply</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Claude Chat Search Panel -->
+        <div class="claude-chat-panel" id="claude-chat-panel">
+          <div class="claude-chat-header">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.9"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8z"/></svg>
+            <h3>Claude AI Search</h3>
+            <button class="claude-chat-close" onclick="toggleClaudeChat()">×</button>
+          </div>
+          <div class="claude-chat-msgs" id="claude-chat-msgs">
+            <div class="chat-msg claude">
+              <div class="chat-bubble">Hi Peter! I can search and analyse your emails. Try asking me things like:<br><br>
+              • <em>"Find emails from Tony about the invoice"</em><br>
+              • <em>"Show unread emails this week"</em><br>
+              • <em>"Any emails about budget or payments?"</em><br>
+              • <em>"What did Sarah say about the project?"</em><br>
+              • <em>"Emails with PDF attachments"</em>
+              </div>
+            </div>
+          </div>
+          <div class="chat-quick-btns">
+            <div class="chat-quick-btn" onclick="sendChatMsg('Emails I need to reply to')">Need reply</div>
+            <div class="chat-quick-btn" onclick="sendChatMsg('Unread emails today')">Unread today</div>
+            <div class="chat-quick-btn" onclick="sendChatMsg('Emails with attachments')">Attachments</div>
+            <div class="chat-quick-btn" onclick="sendChatMsg('Urgent emails')">Urgent</div>
+          </div>
+          <div class="claude-chat-input-row">
+            <textarea class="claude-chat-input" id="claude-chat-input" placeholder="Ask Claude to search your emails..." rows="1"
+              onkeydown="handleChatKey(event)" oninput="autoResizeChat(this)"></textarea>
+            <button class="claude-chat-send" id="claude-chat-send" onclick="sendChatMsg()">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M15.1 1L1 7l5 2.5L15.1 1zM6 9.5V15l3-3.5L15.1 1 6 9.5z"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -1898,6 +1968,264 @@ function viewAttachmentEmail(emailId) {
     if (rows[idx]) openEmail(email, rows[idx]);
     else openEmail(email, null);
   }, 100);
+}
+
+// ── CLAUDE CHAT SEARCH ──
+let chatHistory = []; // {role, content}
+let chatSearching = false;
+
+function toggleClaudeChat() {
+  const panel = document.getElementById('claude-chat-panel');
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+  } else {
+    panel.classList.add('open');
+    document.getElementById('claude-chat-input').focus();
+  }
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChatMsg();
+  }
+}
+
+function autoResizeChat(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 80) + 'px';
+}
+
+function askClaudeChat(prompt) {
+  // Open chat panel and send a prompt about the current email
+  const panel = document.getElementById('claude-chat-panel');
+  panel.classList.add('open');
+  if (currentEmail) {
+    sendChatMsg(prompt + '\n\nEmail:\nFrom: ' + currentEmail.sender + '\nSubject: ' + currentEmail.subject + '\n\n' + (currentEmail.fullBody || currentEmail.body));
+  } else {
+    sendChatMsg(prompt);
+  }
+}
+
+function addChatMsg(role, content, results) {
+  const msgs = document.getElementById('claude-chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.innerHTML = content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+  div.appendChild(bubble);
+
+  if (results && results.length > 0) {
+    const resultsDiv = document.createElement('div');
+    resultsDiv.className = 'chat-results';
+    results.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'chat-result-card';
+      card.onclick = () => jumpToEmail(r.id);
+      card.innerHTML = `
+        <div class="chat-result-sender">${esc(r.sender)}</div>
+        <div class="chat-result-subject">${esc(r.subject)}</div>
+        <div class="chat-result-why">✦ ${esc(r.why)}</div>`;
+      resultsDiv.appendChild(card);
+    });
+    div.appendChild(resultsDiv);
+  }
+
+  const timeEl = document.createElement('div');
+  timeEl.className = 'chat-time';
+  timeEl.textContent = time;
+  div.appendChild(timeEl);
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function addThinkingBubble() {
+  const msgs = document.getElementById('claude-chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'chat-msg claude';
+  div.id = 'chat-thinking';
+  div.innerHTML = `<div class="chat-bubble thinking">
+    <div class="dot-loader" style="gap:4px">
+      <span style="width:6px;height:6px"></span>
+      <span style="width:6px;height:6px"></span>
+      <span style="width:6px;height:6px"></span>
+    </div>
+  </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function jumpToEmail(emailId) {
+  const email = loadedEmails.find(e => e.id === emailId);
+  if (!email) return;
+  // Find and click the email row
+  const rows = document.querySelectorAll('.email-row');
+  const idx = loadedEmails.findIndex(e => e.id === emailId);
+  if (rows[idx]) {
+    rows[idx].scrollIntoView({behavior:'smooth', block:'center'});
+    openEmail(email, rows[idx]);
+  } else {
+    openEmail(email, null);
+  }
+}
+
+async function sendChatMsg(prefill) {
+  const input = document.getElementById('claude-chat-input');
+  const query = prefill || input.value.trim();
+  if (!query || chatSearching) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Add user message to chat
+  addChatMsg('user', query);
+  chatHistory.push({ role: 'user', content: query });
+
+  // Show thinking indicator
+  chatSearching = true;
+  document.getElementById('claude-chat-send').disabled = true;
+  const thinking = addThinkingBubble();
+
+  // Build email context — compact summary of all loaded emails
+  const emailContext = loadedEmails.map(e => ({
+    id: e.id,
+    sender: e.sender,
+    from: e.from,
+    subject: e.subject,
+    preview: e.preview,
+    date: e.time,
+    folder: e.folder,
+    unread: e.unread,
+    hasAttachment: e.attachment,
+    attachments: (e.attachmentNames || []).join(', '),
+    tags: e.tags.join(', ')
+  }));
+
+  // Add current email context if one is open
+  const currentCtx = currentEmail
+    ? `\n\nCurrently open email:\nFrom: ${currentEmail.sender}\nSubject: ${currentEmail.subject}\nBody: ${(currentEmail.fullBody || currentEmail.body || '').slice(0, 500)}`
+    : '';
+
+  const systemPrompt = `You are Claude, an AI email assistant embedded inside Peter's Outlook inbox. You have access to ${emailContext.length} emails.
+
+Your job:
+- Search and find specific emails when asked
+- Analyse email content and provide insights  
+- Answer questions about the emails
+- Help Peter understand what needs his attention
+
+When returning search results, include the email IDs so they can be highlighted.
+Always be concise and helpful. Use the user's name (Peter) naturally.
+
+Current emails in mailbox:
+${JSON.stringify(emailContext)}${currentCtx}
+
+When the user asks to find emails, respond with:
+1. A brief answer explaining what you found
+2. A JSON block at the end with matched emails: <results>[{"id":"...","sender":"...","subject":"...","why":"reason matched"}]</results>
+
+For analysis questions (not search), just answer directly without results tags.`;
+
+  try {
+    const messages = [
+      ...chatHistory.slice(-6), // last 3 exchanges for context
+    ];
+
+    // Use the Anthropic API via a CORS-friendly approach
+    // We send to claude.ai's API endpoint which allows browser calls
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-allow-cors': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: messages
+      })
+    });
+
+    const data = await response.json();
+    thinking.remove();
+
+    if (data.error) throw new Error(data.error.message);
+
+    const rawText = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+
+    // Parse out results if present
+    let replyText = rawText;
+    let results = [];
+    const resultsMatch = rawText.match(/<results>([\s\S]*?)<\/results>/);
+    if (resultsMatch) {
+      replyText = rawText.replace(/<results>[\s\S]*?<\/results>/, '').trim();
+      try {
+        const parsed = JSON.parse(resultsMatch[1]);
+        // Map to actual email objects
+        results = parsed.map(r => {
+          const email = loadedEmails.find(e => e.id === r.id);
+          return email ? { id: email.id, sender: email.sender, subject: email.subject, why: r.why || 'Matched your query' } : null;
+        }).filter(Boolean);
+      } catch {}
+    }
+
+    chatHistory.push({ role: 'assistant', content: rawText });
+    addChatMsg('claude', replyText, results);
+
+  } catch(err) {
+    thinking.remove();
+
+    // Fallback: do local smart search and format as chat response
+    const ql = query.toLowerCase();
+    const stopWords = new Set(['email','emails','from','about','with','the','and','for','has','have','me','my','find','show','get','all','any','that','this','what','did','say','sent','tell','need','want','please','can','you']);
+    const keywords = ql.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+
+    const fromMatch = ql.match(/(?:from|by)\s+([a-z]+(?:\s+[a-z]+)?)/i);
+    const senderFilter = fromMatch ? fromMatch[1].toLowerCase() : null;
+    const unreadOnly = /unread|haven.t read|not read/.test(ql);
+    const attachOnly = /attachment|pdf|excel|word|file|document/.test(ql);
+
+    let matched = loadedEmails.filter(e => {
+      if (senderFilter && !(e.sender.toLowerCase().includes(senderFilter) || e.from.toLowerCase().includes(senderFilter))) return false;
+      if (unreadOnly && !e.unread) return false;
+      if (attachOnly && !e.attachment) return false;
+      if (keywords.length && !senderFilter) {
+        return keywords.some(k =>
+          e.subject.toLowerCase().includes(k) ||
+          e.body.toLowerCase().includes(k) ||
+          e.sender.toLowerCase().includes(k) ||
+          (e.attachmentNames || []).some(n => n.toLowerCase().includes(k))
+        );
+      }
+      return !!senderFilter;
+    }).slice(0, 10);
+
+    const results = matched.map(e => ({
+      id: e.id, sender: e.sender, subject: e.subject,
+      why: senderFilter ? `From ${e.sender.split('→').pop().trim()}` :
+           keywords.some(k => e.subject.toLowerCase().includes(k)) ? 'Found in subject' : 'Keyword match'
+    }));
+
+    const reply = matched.length
+      ? `Found **${matched.length} email${matched.length !== 1 ? 's' : ''}** matching your query. Click any result below to open it.`
+      : `I couldn't find any emails matching "${query}". Try different keywords or a sender name.`;
+
+    chatHistory.push({ role: 'assistant', content: reply });
+    addChatMsg('claude', reply, results);
+  }
+
+  chatSearching = false;
+  document.getElementById('claude-chat-send').disabled = false;
+  document.getElementById('claude-chat-input').focus();
 }
 
 function showScreen(id) {
