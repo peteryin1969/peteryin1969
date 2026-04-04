@@ -1186,52 +1186,57 @@ async function runSearch() {
   const q = document.getElementById('search-input').value.trim();
   if (!q) return;
   document.getElementById('email-view').style.display = 'none';
+  document.getElementById('attachment-view').style.display = 'none';
   document.getElementById('search-results-view').classList.add('open');
   document.getElementById('sr-title').textContent = `Searching: "${q}"`;
   document.getElementById('sr-list').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 0;gap:12px;"><div class="dot-loader"><span></span><span></span><span></span></div><div class="loading-msg" id="sr-load-msg">Searching your mailbox...</div></div>`;
 
-  let graphResults = [];
+  const kw = q.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+
+  // Step 1: Search loaded emails locally first (instant)
+  let matched = loadedEmails.filter(e => kw.some(k =>
+    e.subject.toLowerCase().includes(k) ||
+    e.body.toLowerCase().includes(k) ||
+    e.sender.toLowerCase().includes(k) ||
+    e.from.toLowerCase().includes(k) ||
+    e.tags.some(t => t.includes(k)) ||
+    (e.attachmentNames || []).some(n => n.toLowerCase().includes(k))
+  ));
+
+  // Step 2: Also try Microsoft Graph search for emails not yet loaded
+  let graphExtra = [];
   try {
-    // Try Graph search first
-    const res = await graphFetch(`/me/messages?$search="${q}"&$top=20&$select=id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview,importance`);
-    graphResults = (res?.value || []).map(m => normaliseMessage(m, currentFolder));
+    const res = await graphFetch(`/me/messages?$search="${encodeURIComponent(q).replace(/%22/g,'"')}"&$top=25&$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview,importance`);
+    const graphEmails = (res?.value || []).map(m => normaliseMessage(m, 'inbox'));
+    // Add any Graph results not already in local results
+    const matchedIds = new Set(matched.map(e => e.graphId));
+    graphExtra = graphEmails.filter(e => !matchedIds.has(e.graphId));
+    matched = [...matched, ...graphExtra];
   } catch {}
 
-  if (!aiSearchMode || !graphResults.length) {
-    const kw = q.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    const matched = loadedEmails.filter(e => kw.some(k =>
-      e.subject.toLowerCase().includes(k) ||
-      e.body.toLowerCase().includes(k) ||
-      e.sender.toLowerCase().includes(k) ||
-      e.tags.some(t => t.includes(k)) ||
-      (e.attachmentNames || []).some(n => n.toLowerCase().includes(k))
-    ));
-    renderSearchResults({ interpretation: 'Keyword search for: ' + q, filters: kw, matchedIds: matched.map(e => e.id), results: matched.map(e => ({ id: e.id, relevance: e.attachmentNames?.some(n => kw.some(k => n.toLowerCase().includes(k))) ? 'Matched in attachment: ' + e.attachmentNames.join(', ') : 'Matched your search terms', snippet: e.preview })), summary: matched.length + ' email(s) found.', suggestedAction: '' }, q, matched);
-    return;
-  }
+  // Sort by date (newest first)
+  matched.sort((a, b) => (b.rawDate || 0) - (a.rawDate || 0));
 
-  // AI analysis of results
-  const emailsData = JSON.stringify(graphResults.slice(0, 15).map(e => ({ id: e.id, sender: e.sender, subject: e.subject, preview: e.preview, time: e.time, tags: e.tags, unread: e.unread })));
-  const prompt = `You are an AI email search assistant. The user searched: "${q}"
+  // Build relevance reasons
+  const results = matched.map(e => {
+    let relevance = 'Matches your search';
+    if (e.sender.toLowerCase().includes(kw[0]) || e.from.toLowerCase().includes(kw[0])) relevance = `From ${e.sender}`;
+    else if (e.subject.toLowerCase().includes(kw[0])) relevance = 'Found in subject line';
+    else if ((e.attachmentNames || []).some(n => kw.some(k => n.toLowerCase().includes(k)))) relevance = 'Matched in attachment: ' + e.attachmentNames.filter(n => kw.some(k => n.toLowerCase().includes(k))).join(', ');
+    else if (e.body.toLowerCase().includes(kw[0])) relevance = 'Found in email body';
+    return { id: e.id, relevance, snippet: e.preview };
+  });
 
-These are the emails found:
-${emailsData}
-
-Analyse which emails best match the intent of the user's query. Respond ONLY with valid JSON (no markdown):
-{"interpretation":"one sentence how you understood the query","filters":["filter1","filter2"],"matchedIds":["id1","id2"],"results":[{"id":"id1","relevance":"why it matches","snippet":"key phrase max 12 words"}],"summary":"2-3 sentence summary","suggestedAction":"one next step"}`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 800, messages: [{ role: 'user', content: prompt }] })
-    });
-    const data = await res.json();
-    const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-    renderSearchResults(parsed, q, graphResults);
-  } catch {
-    renderSearchResults({ interpretation: 'Results from your mailbox for: ' + q, filters: [], matchedIds: graphResults.map(e => e.id), results: graphResults.map(e => ({ id: e.id, relevance: 'Found in your inbox', snippet: e.preview })), summary: graphResults.length + ' email(s) found.', suggestedAction: '' }, q, graphResults);
-  }
+  renderSearchResults({
+    interpretation: `Searched your mailbox for "${q}" — ${matched.length} email${matched.length !== 1 ? 's' : ''} found`,
+    filters: kw,
+    matchedIds: matched.map(e => e.id),
+    results,
+    summary: matched.length
+      ? `Found ${matched.length} email${matched.length !== 1 ? 's' : ''} matching "${q}". ${graphExtra.length ? graphExtra.length + ' additional results from full mailbox search.' : ''}`
+      : `No emails found for "${q}". Try different keywords.`,
+    suggestedAction: matched.length ? 'Click any result to open the full email.' : ''
+  }, q, matched);
 }
 
 function renderSearchResults(data, q, emails) {
