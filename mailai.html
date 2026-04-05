@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MailAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f11;--bg2:#17171b;--bg3:#1e1e24;--bg4:#26262e;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);
+  --text:#e8e6e0;--text2:#8a8880;--text3:#5a5856;
+  --accent:#c8a96e;--accent2:#e8c98e;
+  --blue:#4d8fd6;--blue-bg:rgba(77,143,214,0.12);
+  --green:#5aad7a;--green-bg:rgba(90,173,122,0.12);
+  --red:#d66060;--red-bg:rgba(214,96,96,0.12);
+  --amber:#d4924a;--amber-bg:rgba(212,146,74,0.12);
+  --r:8px;--rl:12px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* ── API Key Screen ── */
+#api-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;flex-direction:column;gap:0}
+.api-card{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:36px 40px;width:420px;max-width:90vw}
+.api-logo{font-family:'DM Serif Display',serif;font-size:28px;color:var(--accent2);margin-bottom:6px}
+.api-sub{font-size:13px;color:var(--text3);margin-bottom:28px}
+.api-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+.api-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:10px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;margin-bottom:14px}
+.api-input:focus{border-color:var(--accent)}
+.api-input::placeholder{color:var(--text3)}
+.api-btn{width:100%;padding:11px;background:var(--accent);border:none;border-radius:var(--r);color:#1a1608;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s}
+.api-btn:hover{background:var(--accent2)}
+.api-note{font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6}
+.api-note a{color:var(--accent);text-decoration:none}
+.api-error{font-size:12px;color:var(--red);margin-bottom:10px;display:none}
+
+/* ── App Layout ── */
+#app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.brand-icon{font-size:20px;opacity:.7}
+.brand-name{font-family:'DM Serif Display',serif;font-size:18px;color:var(--accent2);letter-spacing:.02em}
+.brand-sub{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-top:-2px}
+.compose-btn{margin:14px 14px 8px;padding:9px 14px;background:var(--accent);color:#1a1608;border:none;border-radius:var(--r);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s}
+.compose-btn:hover{background:var(--accent2)}
+.sidebar-nav{flex:1;padding:4px 0}
+.nav-item{width:100%;display:flex;align-items:center;gap:9px;padding:8px 18px;background:none;border:none;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:color .1s,background .1s}
+.nav-item:hover{color:var(--text);background:var(--bg3)}
+.nav-item.active{color:var(--accent);background:rgba(200,169,110,.08)}
+.nav-badge{margin-left:auto;background:var(--accent);color:#1a1608;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px}
+.sidebar-footer{padding:14px 18px;border-top:1px solid var(--border)}
+.ai-status{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text3)}
+.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.key-change{margin-left:auto;font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif}
+.key-change:hover{color:var(--text)}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;background:var(--bg2);flex-shrink:0;gap:8px}
+.search-wrap{flex:1;position:relative;display:flex;align-items:center}
+.search-icon{position:absolute;left:10px;font-size:13px;pointer-events:none;opacity:.5}
+.search-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:7px 30px 7px 32px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border .15s}
+.search-input:focus{border-color:var(--border2)}
+.search-input::placeholder{color:var(--text3)}
+.search-clear{position:absolute;right:8px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px}
+.ai-search-btn{padding:7px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--accent);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:background .15s,border-color .15s}
+.ai-search-btn:hover{background:var(--bg4);border-color:var(--accent)}
+.ai-search-btn:disabled{opacity:.6;cursor:default}
+
+.content{flex:1;display:flex;overflow:hidden}
+
+/* ── Email List ── */
+.email-list{width:290px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg2)}
+.email-list::-webkit-scrollbar{width:4px}
+.email-list::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+.empty-list{padding:32px 20px;text-align:center;color:var(--text3);font-size:13px}
+.email-item{padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;border-left:2px solid transparent}
+.email-item:hover{background:var(--bg3)}
+.email-item.selected{background:var(--bg4);border-left-color:var(--accent)}
+.email-item.matched{background:rgba(200,169,110,.06);border-left-color:rgba(200,169,110,.4)}
+.email-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.sender-row{display:flex;align-items:center;gap:5px;overflow:hidden;flex:1;min-width:0}
+.unread-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);flex-shrink:0}
+.e-sender{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.email-item:not(.unread) .e-sender{font-weight:400;color:var(--text2)}
+.star{font-size:11px;color:var(--accent);flex-shrink:0}
+.e-time{font-size:11px;color:var(--text3);flex-shrink:0;margin-left:6px}
+.e-subject{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.e-preview{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.match-reason{font-size:11px;color:var(--accent);margin-top:5px;font-style:italic}
+
+/* ── Email View ── */
+.email-view{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-width:0}
+.empty-view{align-items:center;justify-content:center}
+.empty-state{text-align:center;color:var(--text3)}
+.empty-icon{font-size:36px;margin-bottom:12px;opacity:.3}
+.empty-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--text2);margin-bottom:6px}
+.empty-hint{font-size:12px}
+.ev-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ev-subject{font-family:'DM Serif Display',serif;font-size:20px;font-weight:400;color:var(--text);margin-bottom:12px;line-height:1.3}
+.ev-meta{display:flex;align-items:center;gap:10px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--bg4);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:var(--accent);flex-shrink:0}
+.meta-name{font-size:13px;font-weight:500;color:var(--text)}
+.meta-email{font-size:11px;color:var(--text3)}
+.ev-body{flex:1;overflow-y:auto;padding:20px 24px}
+.ev-body::-webkit-scrollbar{width:4px}
+.ev-body::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+.body-text{font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.75;color:var(--text);white-space:pre-wrap;word-break:break-word}
+
+/* ── AI Toolbar ── */
+.ai-toolbar{display:flex;align-items:center;gap:6px;padding:10px 16px;border-top:1px solid var(--border);background:var(--bg2);flex-shrink:0;flex-wrap:wrap}
+.toolbar-label{font-size:11px;color:var(--accent);font-weight:500;letter-spacing:.04em;margin-right:4px}
+.tool-btn{display:flex;align-items:center;gap:5px;padding:5px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .15s}
+.tool-btn:hover{background:var(--bg4);color:var(--text);border-color:var(--border2)}
+.tool-btn.accent{border-color:rgba(200,169,110,.3);color:var(--accent)}
+.tool-btn.accent:hover{background:rgba(200,169,110,.08);border-color:var(--accent)}
+.tool-btn:disabled{opacity:.5;cursor:default}
+.divider{width:1px;height:18px;background:var(--border);margin:0 2px}
+
+/* ── AI Panel ── */
+.ai-panel{border-top:1px solid var(--border);background:var(--bg2);flex-shrink:0;max-height:230px;overflow-y:auto;display:none}
+.ai-panel.show{display:block}
+.ai-panel::-webkit-scrollbar{width:4px}
+.ai-panel::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0}
+.panel-title{font-size:12px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:5px}
+.panel-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px}
+.panel-close:hover{color:var(--text)}
+.panel-body{padding:10px 16px 14px}
+.ai-loading{display:flex;align-items:center;gap:10px;color:var(--text3);font-size:13px;font-style:italic}
+.dots{display:inline-flex;gap:3px;align-items:center}
+.dots span{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,80%,100%{opacity:.3;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}
+.result{display:flex;flex-direction:column;gap:10px}
+.result-row{display:flex;align-items:center;gap:10px}
+.rlabel{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;min-width:100px;flex-shrink:0}
+.rval{font-size:13px;color:var(--text)}
+.rsec{display:flex;flex-direction:column;gap:4px}
+.rtext{font-size:13px;color:var(--text);line-height:1.6}
+.rtext.hi{color:var(--accent);font-style:italic}
+.rlist{list-style:none;display:flex;flex-direction:column;gap:3px}
+.rlist li{font-size:13px;color:var(--text);padding-left:14px;position:relative}
+.rlist li::before{content:'→';position:absolute;left:0;color:var(--accent);font-size:11px}
+.badge{font-size:11px;font-weight:500;padding:2px 8px;border-radius:12px}
+.b-red{background:var(--red-bg);color:var(--red)}
+.b-amber{background:var(--amber-bg);color:var(--amber)}
+.b-green{background:var(--green-bg);color:var(--green)}
+.b-blue{background:var(--blue-bg);color:var(--blue)}
+.b-teal{background:rgba(90,173,150,.12);color:#5aad96}
+.b-gray{background:var(--bg4);color:var(--text2)}
+
+/* ── Draft Panel ── */
+.draft-panel{border-top:1px solid var(--border2);background:var(--bg2);flex-shrink:0;display:none;flex-direction:column}
+.draft-panel.show{display:flex}
+.draft-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)}
+.draft-title{font-size:12px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:5px}
+.draft-actions{display:flex;gap:6px;align-items:center}
+.btn-ghost{padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .15s}
+.btn-ghost:hover{background:var(--bg4);color:var(--text)}
+.btn-ghost:disabled{opacity:.5;cursor:default}
+.btn-primary{padding:5px 12px;background:var(--accent);border:none;border-radius:var(--r);color:#1a1608;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s}
+.btn-primary:hover{background:var(--accent2)}
+.instr-row{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border)}
+.instr-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none}
+.instr-input:focus{border-color:var(--border2)}
+.instr-input::placeholder{color:var(--text3)}
+.btn-apply{padding:6px 12px;background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.25);border-radius:var(--r);color:var(--accent);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;transition:all .15s}
+.btn-apply:hover{background:rgba(200,169,110,.2)}
+.btn-apply:disabled{opacity:.5;cursor:default}
+.draft-loading-msg{display:flex;align-items:center;gap:10px;color:var(--text3);font-size:13px;font-style:italic;padding:16px}
+.draft-textarea{background:var(--bg);border:none;border-top:1px solid var(--border);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.7;padding:14px 16px;resize:none;min-height:130px;outline:none;width:100%}
+.draft-textarea::placeholder{color:var(--text3)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- API Key Screen -->
+<div id="api-screen">
+  <div class="api-card">
+    <div class="api-logo">✉ MailAI</div>
+    <div class="api-sub">Enter your Anthropic API key to get started</div>
+    <div class="api-label">Anthropic API key</div>
+    <input class="api-input" id="api-key-input" type="password" placeholder="sk-ant-..." autocomplete="off" />
+    <div class="api-error" id="api-error">Invalid key — please check and try again.</div>
+    <button class="api-btn" onclick="saveKey()">Start MailAI →</button>
+    <div class="api-note">
+      Don't have a key? Get one free at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br>
+      Your key is stored only in your browser and never sent anywhere except directly to Anthropic.
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-icon">✉</span>
+      <div>
+        <div class="brand-name">MailAI</div>
+        <div class="brand-sub">Claude-powered</div>
+      </div>
+    </div>
+    <button class="compose-btn" onclick="openCompose()"><span>+</span> Compose</button>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" onclick="setFolder('inbox',this)">⬇ <span style="flex:1">Inbox</span><span class="nav-badge" id="unread-count">3</span></button>
+      <button class="nav-item" onclick="setFolder('starred',this)">★ <span style="flex:1">Starred</span></button>
+      <button class="nav-item" onclick="setFolder('sent',this)">⬆ <span style="flex:1">Sent</span></button>
+      <button class="nav-item" onclick="setFolder('drafts',this)">✎ <span style="flex:1">Drafts</span></button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="ai-status">
+        <span class="ai-dot"></span> Claude AI connected
+        <button class="key-change" onclick="changeKey()">change key</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="search-input" placeholder="Search emails with AI…" onkeydown="if(event.key==='Enter')doSearch()" />
+        <button class="search-clear" id="search-clear" style="display:none" onclick="clearSearch()">✕</button>
+      </div>
+      <button class="ai-search-btn" id="search-btn" onclick="doSearch()">
+        <span>✦</span> AI Search
+      </button>
+    </div>
+
+    <div class="content">
+      <div class="email-list" id="email-list"></div>
+
+      <div class="email-view" id="email-view">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">✉</div>
+          <div class="empty-title">Select an email to read</div>
+          <div class="empty-hint">Use ✦ AI Search to find emails instantly</div>
+        </div>
+
+        <div id="ev-header" class="ev-header" style="display:none"></div>
+        <div id="ev-body" class="ev-body" style="display:none"><pre class="body-text" id="body-text"></pre></div>
+
+        <div class="ai-toolbar" id="ai-toolbar" style="display:none">
+          <span class="toolbar-label">✦ Claude</span>
+          <button class="tool-btn" onclick="runPanel('analyze')">🔎 Analyze</button>
+          <button class="tool-btn" onclick="runPanel('summarize')">📋 Summarize</button>
+          <button class="tool-btn" onclick="runPanel('tone')">💬 Tone</button>
+          <div class="divider"></div>
+          <button class="tool-btn accent" onclick="startDraft('reply')">↩ Draft reply</button>
+          <button class="tool-btn" onclick="startDraft('forward')">↪ Forward</button>
+        </div>
+
+        <div class="ai-panel" id="ai-panel">
+          <div class="panel-header">
+            <span class="panel-title" id="panel-title">✦ Analysis</span>
+            <button class="panel-close" onclick="closePanel()">✕</button>
+          </div>
+          <div class="panel-body" id="panel-body"></div>
+        </div>
+
+        <div class="draft-panel" id="draft-panel">
+          <div class="draft-header">
+            <span class="draft-title" id="draft-title">✦ AI draft</span>
+            <div class="draft-actions">
+              <button class="btn-ghost" id="redraft-btn" onclick="reDraft()">↻ Re-draft</button>
+              <button class="btn-primary">Send ↑</button>
+              <button class="btn-ghost" onclick="closeDraft()">✕</button>
+            </div>
+          </div>
+          <div class="instr-row">
+            <input class="instr-input" id="instr-input" placeholder="Refine: 'make it shorter', 'more formal', 'add an apology'…" onkeydown="if(event.key==='Enter')reDraft()" />
+            <button class="btn-apply" id="apply-btn" onclick="reDraft()">Apply ✦</button>
+          </div>
+          <div class="draft-loading-msg" id="draft-loading" style="display:none">
+            <span class="dots"><span></span><span></span><span></span></span> Drafting your reply…
+          </div>
+          <textarea class="draft-textarea" id="draft-textarea" placeholder="Draft will appear here…"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────
+const EMAILS = [
+  {id:1,unread:true,starred:false,sender:'Sarah Chen',email:'sarah.chen@acmecorp.com',subject:'Q2 Budget Review — Action Required',preview:'Please review the attached Q2 budget spreadsheet before our meeting on Friday.',time:'9:42 AM',date:'Today',body:`Hi team,\n\nPlease review the attached Q2 budget spreadsheet before our meeting on Friday. We need decisions on the following items:\n\n1. Marketing spend increase (+£40k) — do we approve?\n2. New hire budget for engineering (3 headcount)\n3. Cloud infrastructure costs — currently running 18% over forecast\n\nI need sign-off from each department head by Thursday EOD. If I don't hear back, I'll assume approval.\n\nPlease also flag any discrepancies you notice in the YTD figures.\n\nBest,\nSarah Chen\nFinance Director`},
+  {id:2,unread:true,starred:true,sender:'James Okafor',email:'james@partnersllp.com',subject:'Partnership proposal — follow up',preview:"Following up on our call last week. We'd love to move forward.",time:'8:15 AM',date:'Today',body:`Hi,\n\nFollowing up on our call last week. We're very excited about the potential partnership and would love to move forward.\n\nCould you send over the draft agreement by next Tuesday? Our legal team will need at least 5 business days to review before we can sign.\n\nAlso, could you confirm the revenue share model we discussed — I want to make sure I have the right numbers for our board presentation on the 15th.\n\nLooking forward to hearing from you.\n\nBest regards,\nJames Okafor\nManaging Partner, Partners LLP`},
+  {id:3,unread:true,starred:false,sender:'Priya Mehta',email:'priya.m@techstartup.io',subject:'Re: API integration questions',preview:'Thanks for the detailed response! I have a couple more questions.',time:'Yesterday',date:'Yesterday',body:`Hi,\n\nThanks for the detailed response! I have a couple more questions about your API:\n\n1. What are the rate limits for the /messages endpoint?\n2. Do you support webhook callbacks for async processing?\n3. Is there a sandbox environment we can use for testing?\n\nOur engineering team is ready to start the integration this week — we just need clarity on the above before we commit to the architecture.\n\nAlso, could you share any example code for authentication? Python preferred.\n\nThanks,\nPriya Mehta\nCTO, TechStartup`},
+  {id:4,unread:false,starred:false,sender:'TechWeekly Newsletter',email:'newsletter@techweekly.com',subject:'This week in AI — major model updates',preview:"Here's your weekly roundup of the most important AI developments.",time:'Mon',date:'Monday',body:`Here's your weekly roundup of the most important AI developments:\n\n• Several major labs announced new model releases this week\n• EU AI Act enforcement timelines clarified\n• New open-source models challenge proprietary offerings\n• AI coding tools adoption reaches record highs\n\nRead more at techweekly.com\n\nTo unsubscribe, click here.`},
+  {id:5,unread:false,starred:true,sender:'Alex Turner',email:'alex.t@company.co.uk',subject:'Team offsite — venue suggestions',preview:"I've shortlisted three venues for the Q3 offsite. Vote by Friday.",time:'Sun',date:'Sunday',body:`Hey,\n\nI've shortlisted three venues for the Q3 offsite. All are within budget and available for 12–14 July:\n\n1. The Manor House, Surrey — great facilities, bit remote\n2. Shoreditch Hotel, London — central, easy for everyone\n3. Brighton Seafront Conference Centre — fun, coastal vibe\n\nVote on your preference by replying with 1, 2, or 3. I'll book whichever gets the most votes by Friday.\n\nCheers,\nAlex`},
+  {id:6,unread:false,starred:false,sender:'GitHub',email:'noreply@github.com',subject:'[mailai] Pull request #12 opened',preview:'dev-bot wants to merge 3 commits into main from feature/dark-mode.',time:'Sat',date:'Saturday',body:`dev-bot opened a pull request.\n\nBranch: feature/dark-mode → main\nCommits: 3 | Files changed: 7\n\nChanges:\n- Added dark mode CSS variables\n- Updated config\n- Added system preference detection\n\nReview at github.com/yourorg/mailai/pull/12`},
+];
+
+// ── State ─────────────────────────────────────────────────────
+let apiKey = '';
+let selectedEmail = null;
+let currentFolder = 'inbox';
+let searchMatches = null;
+let draftMode = 'reply';
+
+// ── API Key ───────────────────────────────────────────────────
+function saveKey() {
+  const k = document.getElementById('api-key-input').value.trim();
+  if (!k.startsWith('sk-')) {
+    document.getElementById('api-error').style.display = 'block';
+    return;
+  }
+  apiKey = k;
+  sessionStorage.setItem('mailai_key', k);
+  document.getElementById('api-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  renderList();
+}
+
+function changeKey() {
+  document.getElementById('api-key-input').value = '';
+  document.getElementById('api-error').style.display = 'none';
+  document.getElementById('api-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+document.getElementById('api-key-input').addEventListener('keydown', e => { if(e.key==='Enter') saveKey(); });
+
+// Restore key from session
+const saved = sessionStorage.getItem('mailai_key');
+if (saved) {
+  apiKey = saved;
+  document.getElementById('api-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  setTimeout(renderList, 0);
+}
+
+// ── Claude API call ───────────────────────────────────────────
+async function claude(system, userMsg) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system,
+      messages: [{ role: 'user', content: userMsg }],
+    }),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(()=>({}));
+    throw new Error(e?.error?.message || `HTTP ${r.status}`);
+  }
+  const d = await r.json();
+  return d.content[0].text;
+}
+
+// ── Render ────────────────────────────────────────────────────
+function getVisible() {
+  let list = EMAILS;
+  if (currentFolder === 'starred') list = list.filter(e => e.starred);
+  if (searchMatches) list = list.filter(e => searchMatches.some(m => m.id === e.id));
+  return list;
+}
+
+function renderList() {
+  const list = getVisible();
+  const el = document.getElementById('email-list');
+  if (!list.length) { el.innerHTML = '<div class="empty-list">No emails found</div>'; return; }
+  el.innerHTML = list.map(e => {
+    const match = searchMatches?.find(m => m.id === e.id);
+    return `<div class="email-item ${e.unread?'unread':''} ${selectedEmail?.id===e.id?'selected':''} ${match?'matched':''}" onclick="selectEmail(${e.id})">
+      <div class="email-top">
+        <div class="sender-row">${e.unread?'<span class="unread-dot"></span>':''}<span class="e-sender">${e.sender}</span>${e.starred?'<span class="star">★</span>':''}</div>
+        <span class="e-time">${e.time}</span>
+      </div>
+      <div class="e-subject">${e.subject}</div>
+      <div class="e-preview">${e.preview}</div>
+      ${match?`<div class="match-reason">✦ ${match.reason}</div>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('unread-count').textContent = EMAILS.filter(e=>e.unread).length;
+}
+
+function selectEmail(id) {
+  selectedEmail = EMAILS.find(e => e.id === id);
+  selectedEmail.unread = false;
+  closePanel(); closeDraft();
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('ev-header').style.display = 'block';
+  document.getElementById('ev-body').style.display = 'block';
+  document.getElementById('ai-toolbar').style.display = 'flex';
+  document.getElementById('ev-header').innerHTML = `
+    <div class="ev-subject">${selectedEmail.subject}</div>
+    <div class="ev-meta">
+      <div class="avatar">${selectedEmail.sender[0]}</div>
+      <div><div class="meta-name">${selectedEmail.sender}</div><div class="meta-email">${selectedEmail.email} · ${selectedEmail.date}</div></div>
+    </div>`;
+  document.getElementById('body-text').textContent = selectedEmail.body;
+  renderList();
+}
+
+function setFolder(name, btn) {
+  currentFolder = name;
+  searchMatches = null;
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+
+function openCompose() {
+  selectedEmail = null;
+  closePanel(); closeDraft();
+  document.getElementById('empty-state').style.display = 'block';
+  document.getElementById('ev-header').style.display = 'none';
+  document.getElementById('ev-body').style.display = 'none';
+  document.getElementById('ai-toolbar').style.display = 'none';
+}
+
+// ── AI Search ─────────────────────────────────────────────────
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="dots"><span></span><span></span><span></span></span> Searching…';
+  document.getElementById('search-clear').style.display = 'block';
+  try {
+    const list = EMAILS.map(e=>`ID:${e.id}|From:${e.sender}|Subject:${e.subject}|Preview:${e.preview}`).join('\n');
+    const raw = await claude(
+      'You are a smart email search assistant. Given a natural-language query, identify which emails match. Return ONLY a JSON array like [{"id":1,"reason":"one sentence"}]. If none match, return [].',
+      `Query: "${q}"\n\nEmails:\n${list}`
+    );
+    searchMatches = JSON.parse(raw.replace(/```json|```/g,'').trim());
+  } catch(err) {
+    searchMatches = [];
+    alert('Search error: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<span>✦</span> AI Search';
+  renderList();
+}
+
+function clearSearch() {
+  searchMatches = null;
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  renderList();
+}
+
+// ── AI Panel ──────────────────────────────────────────────────
+const PANEL_PROMPTS = {
+  analyze:  ['You are an email analyst. Return ONLY JSON: {"urgency":"Low|Medium|High","sentiment":"string","actionItems":["string"],"summary":"string","suggestedNextStep":"string"}',
+             e => `Subject: ${e.subject}\nFrom: ${e.sender}\n\n${e.body}`],
+  summarize:['You are an email summarizer. Return ONLY JSON: {"tldr":"one sentence","bullets":["up to 4 strings"]}',
+             e => `Subject: ${e.subject}\n\n${e.body}`],
+  tone:     ['You are a communication expert. Return ONLY JSON: {"tone":"string","formality":"Casual|Neutral|Formal","emotion":"string","perception":"string","tips":["string"]}',
+             e => `Subject: ${e.subject}\nFrom: ${e.sender}\n\n${e.body}`],
+};
+
+const PANEL_TITLES = { analyze:'✦ Email analysis', summarize:'✦ Summary', tone:'✦ Tone check' };
+
+async function runPanel(mode) {
+  if (!selectedEmail) return;
+  const panel = document.getElementById('ai-panel');
+  const body = document.getElementById('panel-body');
+  document.getElementById('panel-title').textContent = PANEL_TITLES[mode];
+  body.innerHTML = '<div class="ai-loading"><span class="dots"><span></span><span></span><span></span></span> Claude is thinking…</div>';
+  panel.classList.add('show');
+  document.getElementById('draft-panel').classList.remove('show');
+  try {
+    const [sys, msgFn] = PANEL_PROMPTS[mode];
+    const raw = await claude(sys, msgFn(selectedEmail));
+    const data = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    body.innerHTML = renderPanelData(mode, data);
+  } catch(err) {
+    body.innerHTML = `<div class="rtext" style="color:var(--red)">Error: ${err.message}. Check your API key.</div>`;
+  }
+}
+
+function renderPanelData(mode, d) {
+  if (mode === 'analyze') {
+    const uc = {High:'b-red',Medium:'b-amber',Low:'b-green'}[d.urgency]||'b-gray';
+    return `<div class="result">
+      <div class="result-row"><span class="rlabel">Urgency</span><span class="badge ${uc}">${d.urgency}</span></div>
+      <div class="result-row"><span class="rlabel">Sentiment</span><span class="rval">${d.sentiment}</span></div>
+      <div class="rsec"><span class="rlabel">Summary</span><p class="rtext">${d.summary}</p></div>
+      ${d.actionItems?.length?`<div class="rsec"><span class="rlabel">Action items</span><ul class="rlist">${d.actionItems.map(i=>`<li>${i}</li>`).join('')}</ul></div>`:''}
+      <div class="rsec"><span class="rlabel">Next step</span><p class="rtext hi">${d.suggestedNextStep}</p></div>
+    </div>`;
+  }
+  if (mode === 'summarize') {
+    return `<div class="result">
+      <div class="rsec"><span class="rlabel">TL;DR</span><p class="rtext hi">${d.tldr}</p></div>
+      ${d.bullets?.length?`<div class="rsec"><span class="rlabel">Key points</span><ul class="rlist">${d.bullets.map(b=>`<li>${b}</li>`).join('')}</ul></div>`:''}
+    </div>`;
+  }
+  if (mode === 'tone') {
+    const fc = {Formal:'b-blue',Neutral:'b-gray',Casual:'b-teal'}[d.formality]||'b-gray';
+    return `<div class="result">
+      <div class="result-row"><span class="rlabel">Tone</span><span class="rval">${d.tone}</span></div>
+      <div class="result-row"><span class="rlabel">Formality</span><span class="badge ${fc}">${d.formality}</span></div>
+      <div class="result-row"><span class="rlabel">Emotion</span><span class="rval">${d.emotion}</span></div>
+      <div class="rsec"><span class="rlabel">Perception</span><p class="rtext">${d.perception}</p></div>
+      ${d.tips?.length?`<div class="rsec"><span class="rlabel">Tips</span><ul class="rlist">${d.tips.map(t=>`<li>${t}</li>`).join('')}</ul></div>`:''}
+    </div>`;
+  }
+}
+
+function closePanel() {
+  document.getElementById('ai-panel').classList.remove('show');
+}
+
+// ── Draft ─────────────────────────────────────────────────────
+async function startDraft(mode) {
+  if (!selectedEmail) return;
+  draftMode = mode;
+  document.getElementById('draft-title').textContent = mode==='reply'?'✦ Draft reply':'✦ Draft forward';
+  document.getElementById('draft-panel').classList.add('show');
+  document.getElementById('ai-panel').classList.remove('show');
+  await generateDraft('');
+}
+
+async function generateDraft(instruction) {
+  const loading = document.getElementById('draft-loading');
+  const ta = document.getElementById('draft-textarea');
+  const btn = document.getElementById('redraft-btn');
+  const applyBtn = document.getElementById('apply-btn');
+  loading.style.display = 'flex'; ta.style.display = 'none';
+  btn.disabled = true; applyBtn.disabled = true;
+  const modeDesc = draftMode==='reply' ? 'Write a professional reply to this email.' : 'Write a brief forwarding message for this email.';
+  const extra = instruction ? ` Additional instruction: ${instruction}` : '';
+  try {
+    const draft = await claude(
+      `You are a professional email drafting assistant. ${modeDesc}${extra} Output only the email body — no subject, no To/From headers.`,
+      `Original email:\nSubject: ${selectedEmail.subject}\nFrom: ${selectedEmail.sender}\n\n${selectedEmail.body}`
+    );
+    ta.value = draft;
+  } catch(err) {
+    ta.value = `Error: ${err.message}. Please check your API key.`;
+  }
+  loading.style.display = 'none'; ta.style.display = 'block';
+  btn.disabled = false; applyBtn.disabled = false;
+}
+
+async function reDraft() {
+  const instr = document.getElementById('instr-input').value.trim();
+  await generateDraft(instr);
+}
+
+function closeDraft() {
+  document.getElementById('draft-panel').classList.remove('show');
+  document.getElementById('draft-textarea').value = '';
+  document.getElementById('instr-input').value = '';
+}
+</script>
+</body>
+</html>
